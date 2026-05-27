@@ -23,25 +23,26 @@ model = GroqModel(model_name)
 
 agent = Agent(model=model,
                instructions= ("Use the provided tools to interact with the documentation."
-                            "Always use the tools when you need to access or search the documents."))
+                            "Always use the tools when you need to access or search the documents."
+                            "If you don't know the answer, say you don't know instead of making up an answer."),)
 
 
-@agent.tool_plain
+@agent.tool_plain(retries=3)
 def list_docs(pattern: str = "*.md") -> list[str]:
     """List all documents in the docs directory."""
     return [str(p) for p in list_all_docs(pattern)]
 
-@agent.tool_plain
-def search_docs(pattern: str, max_results: int = 20) -> list[str]:
+@agent.tool_plain(retries=3)
+def search_docs(pattern: str, max_results: int = 5) -> list[str]:
     """Search for a regex pattern in all markdown files."""
     return grep(pattern, max_results)
 
-@agent.tool_plain
+@agent.tool_plain(retries=3)
 def read_document(path: str) -> str:
     """Read the full content of a document by its relative path."""
     return read_doc(path)
 
-@agent.tool_plain
+@agent.tool_plain(retries=3)
 def read_document_slice(path: str, start_line: int, end_line: Optional[int] = None) -> str:
     """Read a specific slice of a document by line numbers."""
     return read_slice_doc(path, start_line, end_line)
@@ -72,7 +73,7 @@ async def run_with_visible_steps(question: str, debug: bool = False) -> str:
 if __name__ == "__main__":    # Example usage
     response = asyncio.run(
         run_with_visible_steps(
-            "how to start system design?",
+            "What you know about split brain problem, majority voting, fecning token, zookerper?",
             debug=False,
         )
     )
@@ -81,13 +82,3 @@ if __name__ == "__main__":    # Example usage
     print(response)
 
 
-    response = asyncio.run(
-        run_with_visible_steps(
-            "List all documents related to system design.",
-            debug=False,
-        )
-    )
-
-    print(f"Agent response:02 {"-"*10}" )
-    print(response)
-  

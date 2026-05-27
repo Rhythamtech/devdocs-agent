@@ -17,10 +17,10 @@ def list_all_docs(pattern = "*.md"):
         files.append(file.relative_to(DOCS_DIR))
     return files
 
-def grep(pattern, max_results = 20):
+def grep(pattern, max_results = 5):
     """Search for a pattern in all markdown files in the docs directory.
     Args:        pattern (str): The regex pattern to search for.
-        max_results (int, optional): The maximum number of results to return. Defaults to 20.
+        max_results (int, optional): The maximum number of results to return. Defaults to 5.
     Returns:        list: A list of strings in the format "relative_path:line_number:line_content
     """
 
