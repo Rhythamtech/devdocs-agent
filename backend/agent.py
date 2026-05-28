@@ -1,84 +1,88 @@
 import os
-import asyncio
+import json
+from typing import Any
 from dotenv import load_dotenv
-from typing import Optional
-from pydantic_ai import Agent
-from pydantic_ai.messages import FunctionToolCallEvent, FunctionToolResultEvent
-from utils.streaming import format_tool_result
-from pydantic_ai.models.groq import GroqModel
+from agno.agent import Agent, RunOutput
+from agno.models.openai.like import OpenAILike
 from utils.tools import list_all_docs, grep, read_slice_doc, read_doc
+from schema import AgentResponse, ToolResponse
 
 load_dotenv()  # Load environment variables from .env file
 
 # Initialize the model (requires OPENAI_API_KEY environment variable)
 
+
 api_key = os.getenv("OPENAI_API_KEY")
 base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-model_name = os.getenv("OPENAI_MODEL", "gpt-4")
+model = os.getenv("OPENAI_MODEL", "gpt-4o")
+
+model_provider = OpenAILike(api_key=api_key, base_url=base_url, id=model)
+
+
 
 if not api_key:
     raise ValueError("OPENAI_API_KEY environment variable is not set.")
 
-model = GroqModel(model_name)
-
-agent = Agent(model=model,
-               instructions= ("Use the provided tools to interact with the documentation."
-                            "Always use the tools when you need to access or search the documents."
-                            "If you don't know the answer, say you don't know instead of making up an answer."),)
-
-
-@agent.tool_plain(retries=3)
-def list_docs(pattern: str = "*.md") -> list[str]:
-    """List all documents in the docs directory."""
-    return [str(p) for p in list_all_docs(pattern)]
-
-@agent.tool_plain(retries=3)
-def search_docs(pattern: str, max_results: int = 5) -> list[str]:
-    """Search for a regex pattern in all markdown files."""
-    return grep(pattern, max_results)
-
-@agent.tool_plain(retries=3)
-def read_document(path: str) -> str:
-    """Read the full content of a document by its relative path."""
-    return read_doc(path)
-
-@agent.tool_plain(retries=3)
-def read_document_slice(path: str, start_line: int, end_line: Optional[int] = None) -> str:
-    """Read a specific slice of a document by line numbers."""
-    return read_slice_doc(path, start_line, end_line)
+instructions = """
+You are a documentation assistant.
+Do not answer before you have checked the docs.
+If the docs do not contain the answer, say you don't know.
+Also citation is important, so always include the source of your information in the answer.
+"""
 
 
+agent = Agent(model=model_provider,
+               instructions= instructions,
+               tools=[list_all_docs, grep, read_slice_doc, read_doc],
+               compress_tool_results = True,
+               tool_choice = "auto",
+               tool_call_limit = 4)
 
-async def run_with_visible_steps(question: str, debug: bool = False) -> str:
-    print(f"\nQ: {question}\n")
-    print("--- agent steps ---")
-    tool_names: dict[str, str] = {}
-
-    async with agent.iter(question) as run:
-        async for node in run:
-            if Agent.is_call_tools_node(node):
-                async with node.stream(run.ctx) as tool_stream:
-                    async for event in tool_stream:
-                        if isinstance(event, FunctionToolCallEvent):
-                            tool_names[event.tool_call_id] = event.part.tool_name
-                            print(
-                                f"-> {event.part.tool_name}({event.part.args_as_json_str()})"
-                            )
-                        elif debug and isinstance(event, FunctionToolResultEvent):
-                            print(format_tool_result(event, tool_names))
-
-    print("--- done ---\n")
-    return run.result.output
-
-if __name__ == "__main__":    # Example usage
-    response = asyncio.run(
-        run_with_visible_steps(
-            "What you know about split brain problem, majority voting, fecning token, zookerper?",
-            debug=False,
+def parse_agent_output(output: Any) -> AgentResponse:
+    """Parses RunOutput or RunOutputEvent into AgentResponse schema."""
+    tool_resp = None
+    
+    tools = getattr(output, "tools", None)
+    tool = getattr(output, "tool", None)
+    
+    if tools:
+        last_tool = tools[-1]
+        tool_resp = ToolResponse(
+            content=str(last_tool.result) if last_tool.result is not None else "",
+            name=last_tool.tool_name or "unknown",
+            args=last_tool.tool_args or {}
         )
+    elif tool:
+        tool_resp = ToolResponse(
+            content=str(tool.result) if tool.result is not None else "",
+            name=tool.tool_name or "unknown",
+            args=tool.tool_args or {}
+        )
+    
+    content = getattr(output, "content", "")
+    return AgentResponse(
+        content=str(content) if content is not None else "",
+        tool_response=tool_resp
     )
 
-    print(f"Agent response:01 {"-"*10}" )
-    print(response)
+
+if __name__ == "__main__":
+    prompt = "What caching strategies are available in Redis?"
+
+    print(f"Question: {prompt}\n")
+    response = agent.run(prompt, stream=True, stream_events=True)
+    for output in response:
+        parsed = parse_agent_output(output)
+        if parsed.tool_response:
+            print(f"Tool Call: {parsed.tool_response.name}({parsed.tool_response.args})")
+            # print(f"Tool Result: {parsed.tool_response.content[:100]}...")
+        if parsed.content:
+            print(parsed.content, end="", flush=True)
+    print("\n")
+
+    
+    response = agent.run(prompt)
+    output = parse_agent_output(response)
+    print(output)
 
 
