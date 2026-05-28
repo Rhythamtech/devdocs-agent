@@ -5,7 +5,7 @@ import itertools
 
 DOCS_DIR = (Path(__file__).parent.parent / "docs").resolve()
 
-def list_all_docs(pattern = "*.md"):
+def list_all_docs(pattern: str = "*.md"):
     """List all documents in the docs directory.
     Args:
         pattern (str, optional): The glob pattern to match files. Defaults to "*.md".
@@ -17,7 +17,7 @@ def list_all_docs(pattern = "*.md"):
         files.append(file.relative_to(DOCS_DIR))
     return files
 
-def grep(pattern, max_results = 5):
+def grep(pattern:str, max_results:int = 5):
     """Search for a pattern in all markdown files in the docs directory.
     Args:        pattern (str): The word to search for.
         max_results (int, optional): The maximum number of results to return. Defaults to 5.
@@ -36,7 +36,7 @@ def grep(pattern, max_results = 5):
     return results
 
 
-def read_slice_doc(path, start_line, end_line):
+def read_slice_doc(path:str, start_line:int, end_line:int):
     """Read a slice of a document in the docs directory.
     Args:
         path (str): The path to the document relative to the docs directory.
@@ -57,7 +57,7 @@ def read_slice_doc(path, start_line, end_line):
             chunk = itertools.islice(f, start_line - 1, None)
         return "".join(chunk)
 
-def read_doc(path):
+def read_doc(path:str):
     """Read the content of a document in the docs directory.
     Args:
         path (str): The path to the document relative to the docs directory.
