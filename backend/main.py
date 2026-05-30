@@ -16,14 +16,6 @@ class AgentService:
         self._agent: Optional[DocumentationAgent] = None
         self._startup_error: Optional[str] = None
 
-    def init(self) -> None:
-        try:
-            self._agent = DocumentationAgent()
-            self._startup_error = None
-        except Exception as e:
-            self._agent = None
-            self._startup_error = str(e)
-
     def get(self) -> DocumentationAgent:
         if self._agent is None:
             detail = self._startup_error or "Agent service is not available."

@@ -8,6 +8,24 @@ resolution-markers = [
 ]
 
 [[package]]
+name = "aiofiles"
+version = "25.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/41/c3/534eac40372d8ee36ef40df62ec129bee4fdb5ad9706e58a29be53b2c970/aiofiles-25.1.0.tar.gz", hash = "sha256:a8d728f0a29de45dc521f18f07297428d56992a742f0cd2701ba86e44d23d5b2", size = 46354, upload-time = "2025-10-09T20:51:04.358Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bc/8a/340a1555ae33d7354dbca4faa54948d76d89a27ceef032c8c3bc661d003e/aiofiles-25.1.0-py3-none-any.whl", hash = "sha256:abe311e527c862958650f9438e859c1fa7568a141b22abcd015e120e86a85695", size = 14668, upload-time = "2025-10-09T20:51:03.174Z" },
+]
+
+[[package]]
+name = "aiosqlite"
+version = "0.22.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4e/8a/64761f4005f17809769d23e518d915db74e6310474e733e3593cfc854ef1/aiosqlite-0.22.1.tar.gz", hash = "sha256:043e0bd78d32888c0a9ca90fc788b38796843360c855a7262a532813133a0650", size = 14821, upload-time = "2025-12-23T19:25:43.997Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/00/b7/e3bf5133d697a08128598c8d0abc5e16377b51465a33756de24fa7dee953/aiosqlite-0.22.1-py3-none-any.whl", hash = "sha256:21c002eb13823fad740196c5a2e9d8e62f6243bd9e7e4a1f87fb5e44ecb4fceb", size = 17405, upload-time = "2025-12-23T19:25:42.139Z" },
+]
+
+[[package]]
 name = "annotated-doc"
 version = "0.0.4"
 source = { registry = "https://pypi.org/simple" }
@@ -45,6 +63,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "ddgs" },
     { name = "fastapi", extra = ["standard"] },
+    { name = "keymesh" },
     { name = "python-dotenv" },
 ]
 
@@ -52,6 +71,7 @@ dependencies = [
 requires-dist = [
     { name = "ddgs", specifier = ">=9.14.4" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.136.3" },
+    { name = "keymesh", specifier = ">=0.1.2a0" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
 ]
 
@@ -533,6 +553,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/df/bf/f7da0350254c0ed7c72f3e33cef02e048281fec7ecec5f032d4aac52226b/jinja2-3.1.6.tar.gz", hash = "sha256:0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d", size = 245115, upload-time = "2025-03-05T20:05:02.478Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/62/a1/3d680cbfd5f4b8f15abc1d571870c5fc3e594bb582bc3b64ea099db13e56/jinja2-3.1.6-py3-none-any.whl", hash = "sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67", size = 134899, upload-time = "2025-03-05T20:05:00.369Z" },
+]
+
+[[package]]
+name = "keymesh"
+version = "0.1.2a0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aiofiles" },
+    { name = "aiosqlite" },
+    { name = "python-dotenv" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/db/ff/0d0a83e314ff363e958496bd9ba21aa1cae9abc01a06dc52305cc150529a/keymesh-0.1.2a0.tar.gz", hash = "sha256:3674a7b3150614b1109fcba19dd1eae390ca0897a19d0a1b530aa82c14707575", size = 54715, upload-time = "2026-05-27T12:23:44.097Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/66/16/1aea142c602d7eae496cba861c78e4856a0fc4db71676de102859ba4973d/keymesh-0.1.2a0-py3-none-any.whl", hash = "sha256:92a89f83606177cdd6f63d4ffa41829621935f84175743e6be5cbd07e8214895", size = 29273, upload-time = "2026-05-27T12:23:42.28Z" },
 ]
 
 [[package]]

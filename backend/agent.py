@@ -1,38 +1,55 @@
-# agent.py
 import os
+import httpx
+from openai import OpenAI
 from typing import Any, Iterator
 from dotenv import load_dotenv
-
+from utils.handler import SyncKeymeshTransport
+from keymesh import SyncKeyPool, SchedulerStrategy
 from agno.agent import Agent, RunEvent
 from agno.models.openai.like import OpenAILike
-
 from utils.tools import list_all_docs, grep, read_slice_doc, read_doc
 from schema import AgentResponse, ToolResponse
 
+from pathlib import Path
+
+# Load .env from the project root (one level up from backend/)
 load_dotenv()
+
 
 
 class DocumentationAgent:
     def __init__(self) -> None:
-        api_key = os.getenv("OPENAI_API_KEY")
+        api_keys_str = os.getenv("OPENAI_API_KEYS")
+        
+        if not api_keys_str:
+            raise ValueError("OPENAI_API_KEYS environment variable is not set.")
+            
+        api_keys = [k.strip() for k in str(api_keys_str).split(",")]
         base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
         model = os.getenv("OPENAI_MODEL", "gpt-4o")
 
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY environment variable is not set.")
-
-        model_provider = OpenAILike(
-            api_key=api_key,
+        self._pool = SyncKeyPool(keys=api_keys, strategy=SchedulerStrategy.ROUND_ROBIN)
+        
+        transport = SyncKeymeshTransport(httpx.HTTPTransport(), self._pool)
+        http_client = httpx.Client(transport=transport)
+        
+        openai_client = OpenAI(
+            api_key="dummy",  # Replaced dynamically by transport
             base_url=base_url,
-            id=model,
+            http_client=http_client
         )
 
+        model_provider = OpenAILike(
+            id=model,
+            client=openai_client,
+        )
+        
         instructions = """
-You are a documentation assistant.
-Do not answer before you have checked the docs.
-If the docs do not contain the answer, say you don't know.
-Also citation is important, so always include the source of your information in the answer.
-"""
+            You are a documentation assistant.
+            Do not answer before you have checked the docs.
+            If the docs do not contain the answer, say you don't know.
+            Also citation is important, so always include the source of your information in the answer.
+            """
 
         self.agent = Agent(
             model=model_provider,
@@ -82,3 +99,12 @@ Also citation is important, so always include the source of your information in 
                 yield f"data: {event.content}\n\n"
 
         yield "data: [DONE]\n\n"
+        
+        
+if __name__ == "__main__":
+    agent = DocumentationAgent()
+    prompt = "What caching strategies are available in Redis?"
+    print(f"Question: {prompt}\n")
+    response = agent.stream(prompt)
+    for chunk in response:
+        print(chunk, end="", flush=True)
