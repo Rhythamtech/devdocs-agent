@@ -26,16 +26,11 @@ class AgentService:
         return self._agent
 
 
-agent_service = AgentService()
+agent = DocumentationAgent()
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    agent_service.init()
-    yield
 
-
-app = FastAPI( title="Documentation Assistant API", version="1.0.0", lifespan=lifespan,)
+app = FastAPI( title="Documentation Assistant API", version="1.0.0",)
 
 
 def error_response( message: str, *, status_code: int, error_code: str, details=None) -> JSONResponse:
@@ -105,11 +100,11 @@ def validate_prompt(prompt: str) -> str:
 
 @app.get("/health")
 def health():
-    if agent_service._agent is None:
+    if agent is None:
         return {
             "status": "degraded",
             "agent_available": False,
-            "startup_error": agent_service._startup_error,
+            "startup_error":"Agent failed to initialize.",
         }
 
     return {
@@ -121,7 +116,6 @@ def health():
 @app.post("/ask",response_model=AgentResponse,status_code=status.HTTP_200_OK)
 def ask_docs(req: AskRequest) -> AgentResponse:
     prompt = validate_prompt(req.prompt)
-    agent = agent_service.get()
 
     try:
         return agent.ask(prompt)
@@ -147,7 +141,6 @@ def ask_docs(req: AskRequest) -> AgentResponse:
 @app.post("/ask/stream")
 def ask_docs_stream(req: AskRequest):
     prompt = validate_prompt(req.prompt)
-    agent = agent_service.get()
 
     def event_stream():
         try:

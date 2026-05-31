@@ -27,7 +27,7 @@ class DocumentationAgent:
         api_keys = [k.strip() for k in str(api_keys_str).split(",")]
         base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
         model = os.getenv("OPENAI_MODEL", "gpt-4o")
-
+        
         self._pool = SyncKeyPool(keys=api_keys, strategy=SchedulerStrategy.ROUND_ROBIN)
         
         transport = SyncKeymeshTransport(httpx.HTTPTransport(), self._pool)
@@ -56,6 +56,7 @@ class DocumentationAgent:
             instructions=instructions,
             tools=[list_all_docs, grep, read_slice_doc, read_doc],
             tool_choice="auto",
+           # compress_tool_results=True,
             tool_call_limit=4,
         )
 
