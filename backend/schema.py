@@ -15,3 +15,4 @@ class AgentResponse(BaseModel):
 
 class AskRequest(BaseModel):
     prompt: str
+    session_id: Optional[str] = None

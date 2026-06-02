@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from agent import DocumentationAgent
 from schema import AskRequest, AgentResponse
@@ -10,27 +11,19 @@ from schema import AskRequest, AgentResponse
 
 MAX_PROMPT_LENGTH = 10_000
 
-
-class AgentService:
-    def __init__(self) -> None:
-        self._agent: Optional[DocumentationAgent] = None
-        self._startup_error: Optional[str] = None
-
-    def get(self) -> DocumentationAgent:
-        if self._agent is None:
-            detail = self._startup_error or "Agent service is not available."
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=detail,
-            )
-        return self._agent
-
-
 agent = DocumentationAgent()
 
 
 
 app = FastAPI( title="Documentation Assistant API", version="1.0.0",)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def error_response( message: str, *, status_code: int, error_code: str, details=None) -> JSONResponse:
@@ -118,7 +111,7 @@ def ask_docs(req: AskRequest) -> AgentResponse:
     prompt = validate_prompt(req.prompt)
 
     try:
-        return agent.ask(prompt)
+        return agent.ask(prompt, session_id=req.session_id)
     except HTTPException:
         raise
     except TimeoutError:
@@ -146,7 +139,7 @@ def ask_docs_stream(req: AskRequest):
         try:
             yield "event: status\ndata: started\n\n"
 
-            for chunk in agent.stream(prompt):
+            for chunk in agent.stream(prompt, session_id=req.session_id):
                 yield chunk
 
             yield "event: status\ndata: completed\n\n"
@@ -166,3 +159,19 @@ def ask_docs_stream(req: AskRequest):
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@app.get("/chats")
+def get_chats(session_id: str):
+    if not session_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="session_id is required.",
+        )
+    try:
+        return agent.get_chat_history(session_id)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve chat history.",
+        )

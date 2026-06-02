@@ -5,8 +5,12 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "agno>=2.6.9",
     "ddgs>=9.14.4",
     "fastapi[standard]>=0.136.3",
     "keymesh>=0.1.2a0",
+    "openai>=2.38.0",
+    "pymongo>=4.17.0",
     "python-dotenv>=1.2.2",
+    "sqlalchemy>=2.0.50",
 ]

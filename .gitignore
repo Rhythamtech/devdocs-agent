@@ -11,5 +11,7 @@ wheels/
 .env
 .gemini
 .gitignore
+/.agents
+skills-lock.json
 
 

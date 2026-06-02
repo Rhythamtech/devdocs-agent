@@ -7,10 +7,12 @@ from utils.handler import SyncKeymeshTransport
 from keymesh import SyncKeyPool, SchedulerStrategy
 from agno.agent import Agent, RunEvent
 from agno.models.openai.like import OpenAILike
+from agno.db.mongo import MongoDb
 from utils.tools import list_all_docs, grep, read_slice_doc, read_doc
 from schema import AgentResponse, ToolResponse
+from os import getenv
 
-from pathlib import Path
+# Get your Supabase project and password
 
 # Load .env from the project root (one level up from backend/)
 load_dotenv()
@@ -19,6 +21,11 @@ load_dotenv()
 
 class DocumentationAgent:
     def __init__(self) -> None:
+       
+        db_url = "mongodb://localhost:27017"
+
+        db = MongoDb(db_url=db_url)
+        
         api_keys_str = os.getenv("OPENAI_API_KEYS")
         
         if not api_keys_str:
@@ -56,8 +63,12 @@ class DocumentationAgent:
             instructions=instructions,
             tools=[list_all_docs, grep, read_slice_doc, read_doc],
             tool_choice="auto",
-           # compress_tool_results=True,
+            compress_tool_results=True,
             tool_call_limit=4,
+            max_tool_calls_from_history = 0,
+            db=db,
+            read_chat_history=True,  # Agent gets a get_chat_history() tool
+
         )
 
     def parse_agent_output(self, output: Any) -> AgentResponse:
@@ -86,12 +97,12 @@ class DocumentationAgent:
             tool_response=tool_resp,
         )
 
-    def ask(self, prompt: str) -> AgentResponse:
-        response = self.agent.run(prompt)
+    def ask(self, prompt: str, session_id: str | None = None) -> AgentResponse:
+        response = self.agent.run(prompt, session_id=session_id)
         return self.parse_agent_output(response)
 
-    def stream(self, prompt: str) -> Iterator[str]:
-        response = self.agent.run(prompt, stream=True, stream_events=True)
+    def stream(self, prompt: str, session_id: str | None = None) -> Iterator[str]:
+        response = self.agent.run(prompt, session_id=session_id, stream=True, stream_events=True)
 
         for event in response:
             if event.event == RunEvent.tool_call_started and event.tool:
@@ -100,12 +111,23 @@ class DocumentationAgent:
                 yield f"data: {event.content}\n\n"
 
         yield "data: [DONE]\n\n"
+
+    def get_chat_history(self, session_id: str) -> list[dict[str, Any]]:
+        try:
+            history = self.agent.get_chat_history(session_id=session_id)
+            return [m.to_dict() for m in history]
+        except Exception as e:
+            if "Session not found" in str(e):
+                return []
+            raise e
         
         
 if __name__ == "__main__":
     agent = DocumentationAgent()
     prompt = "What caching strategies are available in Redis?"
     print(f"Question: {prompt}\n")
-    response = agent.stream(prompt)
-    for chunk in response:
-        print(chunk, end="", flush=True)
+    # response = agent.stream(prompt, session_id="test-session")
+    # for chunk in response:
+    #     print(chunk, end="", flush=True)
+    response = agent.ask(prompt, session_id="test-session")
+    print(f"Answer: {response.content}\n")
