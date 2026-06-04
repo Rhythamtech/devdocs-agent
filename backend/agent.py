@@ -3,6 +3,7 @@ import httpx
 from openai import OpenAI
 from typing import Any, Iterator
 from dotenv import load_dotenv
+import agentops
 from utils.handler import SyncKeymeshTransport
 from keymesh import SyncKeyPool, SchedulerStrategy
 from agno.agent import Agent, RunEvent
@@ -27,7 +28,9 @@ class DocumentationAgent:
         db = MongoDb(db_url=db_url)
         
         api_keys_str = os.getenv("OPENAI_API_KEYS")
-        
+        agentops.init()
+
+            
         if not api_keys_str:
             raise ValueError("OPENAI_API_KEYS environment variable is not set.")
             
@@ -52,10 +55,19 @@ class DocumentationAgent:
         )
         
         instructions = """
-            You are a documentation assistant.
-            Do not answer before you have checked the docs.
-            If the docs do not contain the answer, say you don't know.
-            Also citation is important, so always include the source of your information in the answer.
+        You are a documentation assistant.
+        Answer questions using the documentation and provide a concise explanation. Do NOT return:
+
+        * file contents
+        * line-by-line matches
+        * search results
+        * document snippets without explanation
+
+        Instead, synthesize the information into a direct answer and then cite the source documents.
+
+        If the answer is not documented, respond only:
+        "I don't know based on the available documentation."
+
             """
 
         self.agent = Agent(
