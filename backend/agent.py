@@ -12,6 +12,7 @@ from agno.db.mongo import MongoDb
 from utils.tools import list_all_docs, grep, read_slice_doc, read_doc
 from schema import AgentResponse, ToolResponse
 from os import getenv
+from core.config import settings
 
 # Get your Supabase project and password
 
@@ -23,7 +24,7 @@ load_dotenv()
 class DocumentationAgent:
     def __init__(self) -> None:
        
-        db_url = "mongodb://localhost:27017"
+        db_url = settings.MONGO_DB_URL
 
         db = MongoDb(db_url=db_url)
         
@@ -35,8 +36,8 @@ class DocumentationAgent:
             raise ValueError("OPENAI_API_KEYS environment variable is not set.")
             
         api_keys = [k.strip() for k in str(api_keys_str).split(",")]
-        base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-        model = os.getenv("OPENAI_MODEL", "gpt-4o")
+        base_url = settings.OPENAI_BASE_URL
+        model = settings.OPENAI_MODEL
         
         self._pool = SyncKeyPool(keys=api_keys, strategy=SchedulerStrategy.ROUND_ROBIN)
         

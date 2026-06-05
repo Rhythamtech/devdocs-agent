@@ -1,11 +1,9 @@
-# fastapi.py
-from contextlib import asynccontextmanager
-from typing import Optional
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from agent import DocumentationAgent
+from core.config import settings
 from schema import AskRequest, AgentResponse
 
 
@@ -19,7 +17,7 @@ app = FastAPI( title="Documentation Assistant API", version="1.0.0",)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.ALLOW_ORIGINS.split(","),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

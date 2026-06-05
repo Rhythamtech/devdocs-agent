@@ -1,6 +1,6 @@
-2026-06-04 23:12:15,782 - WARNING - [OPENAI INSTRUMENTOR] Error setting up OpenAI streaming wrappers: No module named 'openai.resources.beta.chat'
-2026-06-04 23:12:15,788 - INFO - Agno instrumentation: Beginning immediate instrumentation
-2026-06-04 23:12:15,810 - INFO - Agno instrumentation: Successfully wrapped 7 methods
-2026-06-04 23:12:15,810 - INFO - Agno instrumentation: Immediate instrumentation completed successfully
-2026-06-04 23:12:15,811 - INFO - Session Replay for default trace: https://app.agentops.ai/sessions?trace_id=b08ed2bf14722a3c9c1c37725f3a7a70
-2026-06-04 23:12:16,752 - INFO - You're on the agentops free plan 🤔
+2026-06-05 22:17:16,870 - WARNING - [OPENAI INSTRUMENTOR] Error setting up OpenAI streaming wrappers: No module named 'openai.resources.beta.chat'
+2026-06-05 22:17:16,875 - INFO - Agno instrumentation: Beginning immediate instrumentation
+2026-06-05 22:17:16,895 - INFO - Agno instrumentation: Successfully wrapped 7 methods
+2026-06-05 22:17:16,895 - INFO - Agno instrumentation: Immediate instrumentation completed successfully
+2026-06-05 22:17:16,896 - INFO - Session Replay for default trace: https://app.agentops.ai/sessions?trace_id=a6717fd64206cdd54cf2f258fb966e63
+2026-06-05 22:17:18,529 - INFO - You're on the agentops free plan 🤔

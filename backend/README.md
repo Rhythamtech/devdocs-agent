@@ -1,89 +1,124 @@
 # DevDocs Agent - Backend
 
-The backend for **DevDocs Agent**, an AI-powered assistant designed to help developers navigate and search through system design documentation.
+Backend service for **DevDocs Agent**, an AI assistant that answers questions using the local Markdown documentation corpus under `backend/docs/`.
 
-## Features
+## What it does
 
-- **AI-Powered Search:** Leverages `pydantic-ai` and LLMs to understand and answer questions based on local documentation.
-- **Documentation Tools:** Custom tools for listing, searching (regex/grep), and reading Markdown documents.
-- **Streaming Support:** Built-in support for streaming agent steps and tool executions.
-- **Local Knowledge Base:** Uses a collection of system design Markdown files as its primary source of truth.
+- Exposes a FastAPI service with `/ask`, `/ask/stream`, `/chats`, and `/health`
+- Uses an Agno agent with OpenAI-compatible model access
+- Searches and reads local documentation files through controlled tools
+- Stores chat history in MongoDB through Agno's `MongoDb` backend
 
 ## Tech Stack
 
-- **Python 3.12+**
-- **[Pydantic AI](https://github.com/pydantic/pydantic-ai):** For building the agent and tool definitions.
-- **[uv](https://github.com/astral-sh/uv):** For fast and reliable dependency management.
-- **Groq/OpenAI:** Supports various LLM providers (currently configured for Groq via `pydantic-ai`).
+- Python 3.12+
+- FastAPI
+- Agno
+- OpenAI-compatible chat completions API
+- MongoDB
+- `uv` for dependency management
 
 ## Project Structure
 
 ```text
 backend/
-├── docs/               # Knowledge base (Markdown files)
+├── docs/               # Knowledge base in Markdown
 ├── utils/
-│   ├── streaming.py    # Utilities for formatting and streaming output
-│   └── tools.py        # Implementation of documentation interaction tools
-├── agent.py            # Main agent definition and tool registration
-├── main.py             # Entry point (currently a placeholder)
-├── schema.py           # Pydantic models for data validation
-└── pyproject.toml      # Project dependencies and configuration
+│   ├── handler.py      # Custom HTTP transport for API key rotation
+│   └── tools.py        # Document listing/search/read tools
+├── agent.py            # Agent initialization and chat history helpers
+├── main.py             # FastAPI application and routes
+├── schema.py           # Pydantic request/response models
+└── pyproject.toml      # Dependencies
 ```
 
-## Setup & Installation
+## Configuration
 
-### Prerequisites
-
-- Python 3.12 or higher.
-- [uv](https://github.com/astral-sh/uv) installed.
-
-### 1. Environment Configuration
-
-Create a `.env` file in the `backend/` directory (or use the one in the root) with the following variables:
+Create a `.env` file at the repository root or in `backend/` with:
 
 ```env
-OPENAI_API_KEY=your_api_key_here
-OPENAI_BASE_URL=https://api.openai.com/v1  # Optional
-OPENAI_MODEL=gpt-4o                        # Or your preferred model
+OPENAI_API_KEYS=key1,key2,key3
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-4o
 ```
 
-*Note: While the code uses `GroqModel`, it currently relies on `OPENAI_API_KEY` for authentication as per the standard environment configuration.*
+Required runtime dependency:
 
-### 2. Install Dependencies
+```env
+MONGODB_URL=mongodb://localhost:27017
+```
 
-Use `uv` to sync dependencies and create a virtual environment:
+Notes:
+
+- `OPENAI_API_KEYS` is a comma-separated list. Requests are rotated across keys with `keymesh`.
+- `OPENAI_BASE_URL` should point to an OpenAI-compatible endpoint. The default is the public OpenAI API.
+- `OPENAI_MODEL` selects the model name passed to the provider.
+- The current code uses a local MongoDB instance for chat persistence.
+
+## Install
 
 ```bash
 cd backend
 uv sync
 ```
 
-## Usage
-
-You can run the agent directly from `agent.py` to see it in action with example queries:
+## Run
 
 ```bash
-python agent.py
+cd backend
+uv run uvicorn main:app --reload
 ```
 
-### Example
+API docs are available at:
 
-The agent can handle queries like:
-- "How to start system design?"
-- "List all documents related to Kafka."
-- "What is the difference between Optimistic and Pessimistic locking?"
+- `GET /docs`
+- `GET /redoc`
 
-## Documentation Tools
+## Endpoints
 
-The agent has access to several tools defined in `utils/tools.py`:
+### `GET /health`
+Returns basic service health.
 
-- `list_docs(pattern)`: Lists all documents in the `docs/` directory matching a glob pattern.
-- `search_docs(pattern, max_results)`: Performs a regex search across all documentation files.
-- `read_document(path)`: Reads the full content of a specific document.
-- `read_document_slice(path, start_line, end_line)`: Reads a specific range of lines from a document.
+### `POST /ask`
+Body:
 
-## Coding Conventions
+```json
+{
+  "prompt": "What caching strategies are available in Redis?",
+  "session_id": "optional-session-id"
+}
+```
 
-- **Type Hinting:** Strictly typed Python code.
-- **Path Management:** Uses `pathlib` for all file operations.
-- **Tool Registration:** Uses `@agent.tool_plain` for standalone tools.
+Returns a structured response with the assistant answer and, when available, the last tool invocation.
+
+### `POST /ask/stream`
+Server-sent event stream for incremental output.
+
+### `GET /chats?session_id=...`
+Returns stored chat history for a session.
+
+## Tools
+
+The agent can use four local tools:
+
+- `list_all_docs(pattern)` - list Markdown files under `backend/docs/`
+- `grep(pattern, max_results)` - regex search across Markdown files
+- `read_slice_doc(path, start_line, end_line)` - read a line range from a document
+- `read_doc(path)` - read a full document
+
+## Important Runtime Constraints
+
+- Prompt length is capped at 10,000 characters in `main.py`
+- CORS is currently wide open in code and should be narrowed before public deployment
+- Chat history depends on MongoDB being available
+- The agent is instantiated at import time in the current codebase
+
+## Production Checklist
+
+- Replace hardcoded MongoDB connection values with configuration
+- Add authentication and rate limiting
+- Restrict CORS to allowed origins
+- Add request logging, metrics, and tracing
+- Add tests for routes, agent init, and tool behavior
+- Add a Dockerfile and deployment config
+
