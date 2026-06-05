@@ -3,17 +3,33 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from agent import DocumentationAgent
+from core.state import state
 from core.config import settings
+from contextlib import asynccontextmanager
 from schema import AskRequest, AgentResponse
 
 
 MAX_PROMPT_LENGTH = 10_000
 
-agent = DocumentationAgent()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+
+    try:
+        state.agent = DocumentationAgent()
+        print("Agent initialized")
+
+    except Exception as e:
+        state.startup_errors.append(str(e))
+        state.agent = None
+
+        print(f"Agent startup failed: {e}")
+
+    yield
+
+    print("Shutdown")
 
 
-
-app = FastAPI( title="Documentation Assistant API", version="1.0.0",)
+app = FastAPI( title="Documentation Assistant API", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -91,7 +107,7 @@ def validate_prompt(prompt: str) -> str:
 
 @app.get("/health")
 def health():
-    if agent is None:
+    if state.agent is None:
         return {
             "status": "degraded",
             "agent_available": False,
@@ -109,7 +125,7 @@ def ask_docs(req: AskRequest) -> AgentResponse:
     prompt = validate_prompt(req.prompt)
 
     try:
-        return agent.ask(prompt, session_id=req.session_id)
+        return state.agent.ask(prompt, session_id=req.session_id)
     except HTTPException:
         raise
     except TimeoutError:
@@ -137,7 +153,7 @@ def ask_docs_stream(req: AskRequest):
         try:
             yield "event: status\ndata: started\n\n"
 
-            for chunk in agent.stream(prompt, session_id=req.session_id):
+            for chunk in state.agent.stream(prompt, session_id=req.session_id):
                 yield chunk
 
             yield "event: status\ndata: completed\n\n"
@@ -167,7 +183,7 @@ def get_chats(session_id: str):
             detail="session_id is required.",
         )
     try:
-        return agent.get_chat_history(session_id)
+        return state.agent.get_chat_history(session_id)
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

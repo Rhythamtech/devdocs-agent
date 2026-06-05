@@ -1,5 +1,11 @@
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+
+
+print(f"Loading settings from {ROOT_DIR / '.env'}")
 
 class Settings(BaseSettings):
     OPENAI_BASE_URL: str
@@ -7,11 +13,15 @@ class Settings(BaseSettings):
     AGENTOPS_API_KEY: str
 
     MONGO_DB_URL: str
+    OPENAI_API_KEYS: str
     
     ALLOW_ORIGINS: str = "*"
     
-    class Config:
-        env_file = ".env"
+    model_config = SettingsConfigDict(
+        env_file=ROOT_DIR / ".env",
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
         
         
 @lru_cache

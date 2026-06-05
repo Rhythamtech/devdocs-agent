@@ -1,87 +1,110 @@
 import os
-import httpx
-from openai import OpenAI
 from typing import Any, Iterator
-from dotenv import load_dotenv
-import agentops
-from utils.handler import SyncKeymeshTransport
-from keymesh import SyncKeyPool, SchedulerStrategy
-from agno.agent import Agent, RunEvent
-from agno.models.openai.like import OpenAILike
-from agno.db.mongo import MongoDb
-from utils.tools import list_all_docs, grep, read_slice_doc, read_doc
-from schema import AgentResponse, ToolResponse
-from os import getenv
-from core.config import settings
 
-# Get your Supabase project and password
+import agentops
+import httpx
+from agno.agent import Agent, RunEvent
+from agno.db.mongo import MongoDb
+from agno.models.openai.like import OpenAILike
+from agno.session import SessionSummaryManager
+from core.config import settings
+from dotenv import load_dotenv
+from keymesh import SchedulerStrategy, SyncKeyPool
+from openai import OpenAI
+from schema import AgentResponse, ToolResponse
+from utils.handler import SyncKeymeshTransport
+from utils.tools import grep, list_all_docs, read_doc, read_slice_doc
+
+
+SUMMARY_MODEL_ID = "llama-3.3-70b-versatile"
+SUMMARY_REQUEST_MESSAGE = (
+    "Summarize the following conversation between a user and an "
+    "assistant reduce it by 36%."
+    "Focus on key details, questions asked, and information provided."
+    " Keep it concise but informative."
+)
+
+AGENT_INSTRUCTIONS = """
+You are a documentation assistant.
+Answer questions using the documentation and provide a concise explanation. Do NOT return:
+
+* file contents
+* line-by-line matches
+* search results
+* document snippets without explanation
+
+Instead, synthesize the information into a direct answer and then cite the source documents.
+
+If the answer is not documented, respond only:
+"I don't know based on the available documentation."
+"""
+
+AGENT_TOOLS = [list_all_docs, grep, read_slice_doc, read_doc]
+
 
 # Load .env from the project root (one level up from backend/)
 load_dotenv()
 
 
-
 class DocumentationAgent:
     def __init__(self) -> None:
-       
-        db_url = settings.MONGO_DB_URL
-
-        db = MongoDb(db_url=db_url)
-        
-        api_keys_str = os.getenv("OPENAI_API_KEYS")
         agentops.init()
 
-            
-        if not api_keys_str:
-            raise ValueError("OPENAI_API_KEYS environment variable is not set.")
-            
-        api_keys = [k.strip() for k in str(api_keys_str).split(",")]
-        base_url = settings.OPENAI_BASE_URL
-        model = settings.OPENAI_MODEL
-        
-        self._pool = SyncKeyPool(keys=api_keys, strategy=SchedulerStrategy.ROUND_ROBIN)
-        
-        transport = SyncKeymeshTransport(httpx.HTTPTransport(), self._pool)
-        http_client = httpx.Client(transport=transport)
-        
-        openai_client = OpenAI(
-            api_key="dummy",  # Replaced dynamically by transport
-            base_url=base_url,
-            http_client=http_client
-        )
-
-        model_provider = OpenAILike(
-            id=model,
-            client=openai_client,
-        )
-        
-        instructions = """
-        You are a documentation assistant.
-        Answer questions using the documentation and provide a concise explanation. Do NOT return:
-
-        * file contents
-        * line-by-line matches
-        * search results
-        * document snippets without explanation
-
-        Instead, synthesize the information into a direct answer and then cite the source documents.
-
-        If the answer is not documented, respond only:
-        "I don't know based on the available documentation."
-
-            """
+        openai_client = self._build_openai_client()
+        model_provider = self._build_model_provider(openai_client, settings.OPENAI_MODEL)
+        session_manager = self._build_session_manager(openai_client)
 
         self.agent = Agent(
             model=model_provider,
-            instructions=instructions,
-            tools=[list_all_docs, grep, read_slice_doc, read_doc],
+            instructions=AGENT_INSTRUCTIONS,
+            tools=AGENT_TOOLS,
             tool_choice="auto",
             compress_tool_results=True,
             tool_call_limit=4,
-            max_tool_calls_from_history = 0,
-            db=db,
+            enable_session_summaries=True,
+            session_summary_manager=session_manager,
+            max_tool_calls_from_history=0,
+            db=MongoDb(db_url=settings.MONGO_DB_URL),
             read_chat_history=True,  # Agent gets a get_chat_history() tool
+        )
 
+    def _build_openai_client(self) -> OpenAI:
+        api_keys = self._load_api_keys()
+        self._pool = SyncKeyPool(keys=api_keys, strategy=SchedulerStrategy.ROUND_ROBIN)
+
+        transport = SyncKeymeshTransport(httpx.HTTPTransport(), self._pool)
+        http_client = httpx.Client(transport=transport)
+
+        return OpenAI(
+            api_key="dummy",  # Replaced dynamically by transport
+            base_url=settings.OPENAI_BASE_URL,
+            http_client=http_client,
+        )
+
+    def _load_api_keys(self) -> list[str]:
+        api_keys_str = os.getenv("OPENAI_API_KEYS")
+
+        if not api_keys_str:
+            raise ValueError("OPENAI_API_KEYS environment variable is not set.")
+
+        return [key.strip() for key in str(api_keys_str).split(",")]
+
+    def _build_model_provider(self, openai_client: OpenAI, model_id: str) -> OpenAILike:
+        return OpenAILike(
+            id=model_id,
+            client=openai_client,
+        )
+
+    def _build_session_manager(self, openai_client: OpenAI) -> SessionSummaryManager:
+        summary_model_provider = self._build_model_provider(
+            openai_client,
+            SUMMARY_MODEL_ID,
+        )
+
+        return SessionSummaryManager(
+            model=summary_model_provider,
+            summary_request_message=SUMMARY_REQUEST_MESSAGE,
+            conversation_limit=4,
         )
 
     def parse_agent_output(self, output: Any) -> AgentResponse:
@@ -133,8 +156,8 @@ class DocumentationAgent:
             if "Session not found" in str(e):
                 return []
             raise e
-        
-        
+
+
 if __name__ == "__main__":
     agent = DocumentationAgent()
     prompt = "What caching strategies are available in Redis?"
