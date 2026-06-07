@@ -1,10 +1,16 @@
-from fastapi import FastAPI, HTTPException, Request, status
+import datetime
+
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.security import OAuth2PasswordRequestForm
 from agent import DocumentationAgent
+from utils.auth import hash_password,verify_password,create_access_token,verify_access_token, oauth2_scheme
 from core.state import state
 from core.config import settings
+from schema import UserCreate
+from pymongo import AsyncMongoClient
 from contextlib import asynccontextmanager
 from schema import AskRequest, AgentResponse
 
@@ -17,6 +23,18 @@ async def lifespan(app: FastAPI):
     try:
         state.agent = DocumentationAgent()
         print("Agent initialized")
+        
+        state.mongo_client =  AsyncMongoClient(settings.MONGO_URI)
+        db = state.mongo_client[settings.MONGO_DATABSE_NAME]
+        state.db = db
+        
+        await db.users.create_index("username", unique=True)
+        await db.users.create_index("email", unique=True)
+        await db.notes.create_index("owner_id")
+        
+        yield
+        
+        state.mongo_client.close()
 
     except Exception as e:
         state.startup_errors.append(str(e))
@@ -39,6 +57,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+async def authenticate_user(username: str, password: str):
+    is_exist = await state.db.find_one([{"username": username}])
+    
+    if not is_exist:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found.",
+        )
+        
+    elif not verify_password(password, is_exist["hash_password"]):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials.",
+        )
+    else:
+        return is_exist
 
 def error_response( message: str, *, status_code: int, error_code: str, details=None) -> JSONResponse:
     return JSONResponse( status_code=status_code,
@@ -104,6 +138,79 @@ def validate_prompt(prompt: str) -> str:
 
     return cleaned
 
+
+
+@app.post("/auth/signup")
+async def signup(user: UserCreate, request: Request):
+    
+    data = user.model_dump()
+    data["username"] = data["username"].strip().lower()
+    data["email"] = data["email"].strip().lower()
+
+
+    
+    is_exist =  await state.db.users.find_one( {'$or': [{"username": data["username"]}, {"email": data["email"]}]})
+    if is_exist:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User already exists.",
+        )
+        
+    data.update({"hash_password": hash_password(data["password"])})
+    data.update({"created_at": datetime.utcnow()})
+        
+    result  = await state.db.users.insert_one(data)
+    
+    return {
+        "message": "User created successfully",
+        "user_id": str(result.inserted_id),
+    }
+
+
+@app.post("/auth/login")
+async def login(request: Request,form_data: OAuth2PasswordRequestForm = Depends()):
+    user = await authenticate_user(form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials.",
+        )
+    
+    token = create_access_token(data={"sub": user["username"]})
+    return {"access_token": token, "token_type": "bearer"}
+
+
+@app.post('/auth/me')
+async def me(token: str = Depends(oauth2_scheme)):
+    
+    exception = HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"})
+    
+    try :
+        payload = verify_access_token(token)
+        username = payload.sub
+        
+        if not username:
+            raise exception
+    except:
+        raise exception
+
+    user =  await state.db.users.find_one( {'$or': [{"username": username}, {"email": username}]})
+    
+    if not user:
+        raise exception
+    
+    return {
+        "id": str(user["_id"]),
+        "username": user["username"],
+        "email": user["email"],
+    }
+
+
+    
+    
 
 @app.get("/health")
 def health():
