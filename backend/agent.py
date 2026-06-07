@@ -16,7 +16,7 @@ from utils.handler import SyncKeymeshTransport
 from utils.tools import grep, list_all_docs, read_doc, read_slice_doc
 
 
-SUMMARY_MODEL_ID = "llama-3.3-70b-versatile"
+SUMMARY_MODEL_ID = "meta-llama/llama-4-scout-17b-16e-instruct"
 SUMMARY_REQUEST_MESSAGE = (
     "Summarize the following conversation between a user and an "
     "assistant reduce it by 36%."
@@ -64,7 +64,8 @@ class DocumentationAgent:
             enable_session_summaries=True,
             session_summary_manager=session_manager,
             max_tool_calls_from_history=0,
-            db=MongoDb(db_url=settings.MONGO_DB_URL),
+            db=MongoDb(db_url=settings.MONGO_DB_URL
+                       ,db_name=settings.MONGO_DATABSE_NAME),
             read_chat_history=True,  # Agent gets a get_chat_history() tool
         )
 
@@ -158,12 +159,13 @@ class DocumentationAgent:
             raise e
 
 
-if __name__ == "__main__":
-    agent = DocumentationAgent()
-    prompt = "What caching strategies are available in Redis?"
-    print(f"Question: {prompt}\n")
-    # response = agent.stream(prompt, session_id="test-session")
-    # for chunk in response:
-    #     print(chunk, end="", flush=True)
-    response = agent.ask(prompt, session_id="test-session")
-    print(f"Answer: {response.content}\n")
+# if __name__ == "__main__":
+#     agent = DocumentationAgent()
+#     prompt = "What caching strategies are available in Redis?"
+#     print(f"Question: {prompt}\n")
+#     # response = agent.stream(prompt, session_id="test-session")
+#     # for chunk in response:
+#     #     print(chunk, end="", flush=True)
+#     response = agent.ask(prompt, session_id="test-session")
+#     print(f"Answer: {response.content}\n")
+

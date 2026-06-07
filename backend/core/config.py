@@ -13,8 +13,13 @@ class Settings(BaseSettings):
     AGENTOPS_API_KEY: str
 
     MONGO_DB_URL: str
+    MONGO_DATABSE_NAME : str
     OPENAI_API_KEYS: str
     
+    JWT_SECRET :str
+    JWT_EXPIRE_IN_MINUTES : int
+    JWT_ALGORITHM :str
+        
     ALLOW_ORIGINS: str = "*"
     
     model_config = SettingsConfigDict(
