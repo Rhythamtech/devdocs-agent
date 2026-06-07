@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
         state.agent = DocumentationAgent()
         print("Agent initialized")
         
-        state.mongo_client =  AsyncMongoClient(settings.MONGO_URI)
+        state.mongo_client =  AsyncMongoClient(settings.MONGO_DB_URL)
         db = state.mongo_client[settings.MONGO_DATABSE_NAME]
         state.db = db
         
@@ -190,7 +190,7 @@ async def me(token: str = Depends(oauth2_scheme)):
     
     try :
         payload = verify_access_token(token)
-        username = payload.sub
+        username = payload.sub    
         
         if not username:
             raise exception
