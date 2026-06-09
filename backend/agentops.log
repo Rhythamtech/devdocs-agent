@@ -1,5 +1,5 @@
-2026-06-09 19:40:36,376 - INFO - Agno instrumentation: Beginning immediate instrumentation
-2026-06-09 19:40:36,390 - INFO - Agno instrumentation: Successfully wrapped 7 methods
-2026-06-09 19:40:36,390 - INFO - Agno instrumentation: Immediate instrumentation completed successfully
-2026-06-09 19:40:36,391 - INFO - Session Replay for default trace: https://app.agentops.ai/sessions?trace_id=7df5c4bddcf091c52a504cbd31cd4623
-2026-06-09 19:40:37,274 - INFO - You're on the agentops free plan 🤔
+2026-06-09 19:49:23,571 - INFO - Agno instrumentation: Beginning immediate instrumentation
+2026-06-09 19:49:23,593 - INFO - Agno instrumentation: Successfully wrapped 7 methods
+2026-06-09 19:49:23,593 - INFO - Agno instrumentation: Immediate instrumentation completed successfully
+2026-06-09 19:49:23,593 - INFO - Session Replay for default trace: https://app.agentops.ai/sessions?trace_id=d9532dd7435811d45e943e5b5c6b82c5
+2026-06-09 19:49:24,528 - INFO - You're on the agentops free plan 🤔

@@ -13,9 +13,10 @@ from pymongo import AsyncMongoClient
 from contextlib import asynccontextmanager
 from schema import AskRequest, AgentResponse
 from utils.auth import hash_password,verify_password,create_access_token,verify_access_token, oauth2_scheme
-from core.logger import logging
-
-
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from core.logger import logger
 
 MAX_PROMPT_LENGTH = 10_000
@@ -50,8 +51,12 @@ async def lifespan(app: FastAPI):
 
 
 
+limiter = Limiter(key_func=get_remote_address)
 app = FastAPI( title="Documentation Assistant API", version="1.0.0", lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+app.add_middleware(SlowAPIMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOW_ORIGINS.split(","),
@@ -100,6 +105,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.warning(f"Validation error: {exc.errors()}")
     return error_response(
         "Invalid request payload.",
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -110,6 +116,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled exception occurred")
     return error_response(
         "Internal server error.",
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -231,7 +238,8 @@ def health():
 
 
 @app.post("/ask",response_model=AgentResponse,status_code=status.HTTP_200_OK)
-def ask_docs(req: AskRequest) -> AgentResponse:
+@limiter.limit("10/minute")
+def ask_docs(req: AskRequest, request: Request) -> AgentResponse:
     prompt = validate_prompt(req.prompt)
 
     try:
@@ -256,7 +264,8 @@ def ask_docs(req: AskRequest) -> AgentResponse:
 
 
 @app.post("/ask/stream")
-def ask_docs_stream(req: AskRequest, token: str = Depends(oauth2_scheme)):
+@limiter.limit("10/minute")
+def ask_docs_stream(req: AskRequest, request: Request, token: str = Depends(oauth2_scheme)):
     prompt = validate_prompt(req.prompt)
 
     user = verify_access_token(token)
