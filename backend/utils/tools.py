@@ -25,15 +25,18 @@ def grep(pattern:str, max_results:int = 5):
     """
 
     results = []
-    rx = re.compile(pattern)
-    for path in DOCS_DIR.rglob("*.md"):
-        with open(path, 'r', encoding='utf-8', errors='ignore') as f:
-            for i, line in enumerate(f, start=1):
-                if rx.search(line):
-                    results.append(f"{path.relative_to(DOCS_DIR)}:{i}:{line.rstrip('\n')}")
-                    if len(results) >= max_results:
-                        return results
-    return results
+    try :
+        rx = re.compile(pattern)
+        for path in DOCS_DIR.rglob("*.md"):
+            with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+                for i, line in enumerate(f, start=1):
+                    if rx.search(line):
+                        results.append(f"{path.relative_to(DOCS_DIR)}:{i}:{line.rstrip('\n')}")
+                        if len(results) >= max_results:
+                            return results
+        return results
+    except Exception as e:
+        return [f"Error: {e}"]
 
 
 def read_slice_doc(path:str, start_line:int, end_line:int):

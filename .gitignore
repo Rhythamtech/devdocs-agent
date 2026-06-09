@@ -13,5 +13,5 @@ wheels/
 .gitignore
 /.agents
 skills-lock.json
-
-
+next-steps.md
+database-design.md

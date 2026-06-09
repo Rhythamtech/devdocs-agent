@@ -67,7 +67,7 @@ class DocumentationAgent:
             session_summary_manager=session_manager,
             max_tool_calls_from_history=0,
             db=MongoDb(db_url=settings.MONGO_DB_URL
-                       ,db_name=settings.MONGO_DATABSE_NAME),
+                       ,db_name=settings.MONGO_DATABASE_NAME),
             read_chat_history=True,  # Agent gets a get_chat_history() tool
         )
 

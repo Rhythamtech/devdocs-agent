@@ -87,7 +87,7 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
     token = create_access_token(data={"sub": user["username"]})
     return {"access_token": token, "token_type": "bearer"}
 
-@router.post('/auth/me')
+@router.get('/auth/me')
 async def me(token: str = Depends(oauth2_scheme)):
     exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -97,7 +97,7 @@ async def me(token: str = Depends(oauth2_scheme)):
     
     try:
         payload = verify_access_token(token)
-        username = payload.sub    
+        username = payload.get("sub")    
         if not username:
             raise exception
     except:
@@ -128,10 +128,16 @@ def health():
 
 @router.post("/ask", response_model=AgentResponse, status_code=status.HTTP_200_OK)
 @limiter.limit("10/minute")
-def ask_docs(req: AskRequest, request: Request) -> AgentResponse:
+def ask_docs(req: AskRequest, request: Request, token: str = Depends(oauth2_scheme)) -> AgentResponse:
     prompt = validate_prompt(req.prompt)
+    user = verify_access_token(token)
 
     try:
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token",
+            )
         return state.agent.ask(prompt, session_id=req.session_id)
     except HTTPException:
         raise
@@ -193,13 +199,20 @@ def ask_docs_stream(req: AskRequest, request: Request, token: str = Depends(oaut
         )
 
 @router.get("/chats")
-def get_chats(session_id: str):
+def get_chats(session_id: str, token: str = Depends(oauth2_scheme)):
+    user = verify_access_token(token)
+    
     if not session_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="session_id is required.",
         )
     try:
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token",
+            )
         return state.agent.get_chat_history(session_id)
     except Exception:
         raise HTTPException(
