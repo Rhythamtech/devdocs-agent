@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     
     JWT_SECRET :str
     JWT_EXPIRE_IN_MINUTES : int
-    JWT_ALGORITHM :str
+    JWT_ALGORITHM :str = 'HS256'
         
     ALLOW_ORIGINS: str = "*"
     
@@ -34,3 +34,4 @@ def get_settings() -> Settings:
     return Settings()
 
 settings = get_settings()
+

@@ -7,7 +7,7 @@ from agent import DocumentationAgent
 class AppState:
     agent: Optional[DocumentationAgent] = None
     mongo_client: Optional[AsyncMongoClient] = None
-    db: Optional[AsyncDatabase] = None
+    db = None
     startup_errors: list[str] = []
 
 

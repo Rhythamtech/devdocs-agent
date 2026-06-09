@@ -6,13 +6,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from agent import DocumentationAgent
-from utils.auth import hash_password,verify_password,create_access_token,verify_access_token, oauth2_scheme
 from core.state import state
 from core.config import settings
 from schema import UserCreate
 from pymongo import AsyncMongoClient
 from contextlib import asynccontextmanager
 from schema import AskRequest, AgentResponse
+from utils.auth import hash_password,verify_password,create_access_token,verify_access_token, oauth2_scheme
+from core.logger import logging
 
 
 MAX_PROMPT_LENGTH = 10_000
@@ -22,7 +23,7 @@ async def lifespan(app: FastAPI):
 
     try:
         state.agent = DocumentationAgent()
-        print("Agent initialized")
+        logging.info("Agent initialized")
         
         state.mongo_client =  AsyncMongoClient(settings.MONGO_DB_URL)
         db = state.mongo_client[settings.MONGO_DATABSE_NAME]
@@ -30,7 +31,6 @@ async def lifespan(app: FastAPI):
         
         await db.users.create_index("username", unique=True)
         await db.users.create_index("email", unique=True)
-        await db.notes.create_index("owner_id")
         
         yield
         
@@ -40,11 +40,11 @@ async def lifespan(app: FastAPI):
         state.startup_errors.append(str(e))
         state.agent = None
 
-        print(f"Agent startup failed: {e}")
+        logging.error(f"Agent startup failed: {e}")
 
     yield
 
-    print("Shutdown")
+    logging.info("Shutdown")
 
 
 app = FastAPI( title="Documentation Assistant API", version="1.0.0", lifespan=lifespan)
@@ -58,7 +58,7 @@ app.add_middleware(
 )
 
 async def authenticate_user(username: str, password: str):
-    is_exist = await state.db.find_one([{"username": username}])
+    is_exist = await state.db.users.find_one({"username": username})
     
     if not is_exist:
         raise HTTPException(
@@ -157,7 +157,7 @@ async def signup(user: UserCreate, request: Request):
         )
         
     data.update({"hash_password": hash_password(data["password"])})
-    data.update({"created_at": datetime.utcnow()})
+    data.update({"created_at": datetime.datetime.now()})
         
     result  = await state.db.users.insert_one(data)
     
@@ -253,34 +253,50 @@ def ask_docs(req: AskRequest) -> AgentResponse:
 
 
 @app.post("/ask/stream")
-def ask_docs_stream(req: AskRequest):
+def ask_docs_stream(req: AskRequest, token: str = Depends(oauth2_scheme)):
     prompt = validate_prompt(req.prompt)
 
-    def event_stream():
-        try:
-            yield "event: status\ndata: started\n\n"
+    user = verify_access_token(token)
 
-            for chunk in state.agent.stream(prompt, session_id=req.session_id):
-                yield chunk
 
-            yield "event: status\ndata: completed\n\n"
-        except TimeoutError:
-            yield "event: error\ndata: The agent timed out while processing the request.\n\n"
-        except Exception:
-            yield "event: error\ndata: Failed to process the prompt.\n\n"
-        finally:
-            yield "event: close\ndata: done\n\n"
+    try :
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token",
+            )
 
-    return StreamingResponse(
-        event_stream(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
+        def event_stream():
+            try:
+                yield "event: status\ndata: started\n\n"
 
+                for chunk in state.agent.stream(prompt, session_id=req.session_id):
+                    yield chunk
+
+                yield "event: status\ndata: completed\n\n"
+            except TimeoutError:
+                yield "event: error\ndata: The agent timed out while processing the request.\n\n"
+            except Exception:
+                yield "event: error\ndata: Failed to process the prompt.\n\n"
+            finally:
+                yield "event: close\ndata: done\n\n"
+
+        return StreamingResponse(
+            event_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+        )
+    
 
 @app.get("/chats")
 def get_chats(session_id: str):
