@@ -16,6 +16,8 @@ from utils.handler import SyncKeymeshTransport
 from utils.tools import grep, list_all_docs, read_doc, read_slice_doc
 
 
+from core.logger import logger
+
 SUMMARY_MODEL_ID = "meta-llama/llama-4-scout-17b-16e-instruct"
 SUMMARY_REQUEST_MESSAGE = (
     "Summarize the following conversation between a user and an "

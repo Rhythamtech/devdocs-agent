@@ -16,6 +16,8 @@ from utils.auth import hash_password,verify_password,create_access_token,verify_
 from core.logger import logging
 
 
+from core.logger import logger
+
 MAX_PROMPT_LENGTH = 10_000
 
 @asynccontextmanager
@@ -23,28 +25,29 @@ async def lifespan(app: FastAPI):
 
     try:
         state.agent = DocumentationAgent()
-        logging.info("Agent initialized")
-        
+        logger.info("Agent initialized")
+
         state.mongo_client =  AsyncMongoClient(settings.MONGO_DB_URL)
         db = state.mongo_client[settings.MONGO_DATABSE_NAME]
         state.db = db
-        
+
         await db.users.create_index("username", unique=True)
         await db.users.create_index("email", unique=True)
-        
+
         yield
-        
+
         state.mongo_client.close()
 
     except Exception as e:
         state.startup_errors.append(str(e))
         state.agent = None
 
-        logging.error(f"Agent startup failed: {e}")
+        logger.error(f"Agent startup failed: {e}")
 
     yield
 
-    logging.info("Shutdown")
+    logger.info("Shutdown")
+
 
 
 app = FastAPI( title="Documentation Assistant API", version="1.0.0", lifespan=lifespan)
