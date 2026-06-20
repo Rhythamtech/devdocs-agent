@@ -15,8 +15,8 @@ function ProfilePage() {
       <div className="flex flex-1 items-start justify-center p-8">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <div className="mx-auto mb-2 flex size-14 items-center justify-center rounded-full bg-[#EEF2FF]">
-              <User className="size-6 text-[#2D5AE0]" />
+            <div className="mx-auto mb-2 flex size-14 items-center justify-center rounded-full bg-primary/10">
+              <User className="size-6 text-primary" />
             </div>
             <CardTitle>{user?.username}</CardTitle>
             <CardDescription>{user?.email}</CardDescription>
@@ -24,15 +24,15 @@ function ProfilePage() {
           <CardContent className="space-y-4">
             <Separator />
             <div className="space-y-3 text-sm">
-              <div className="flex items-center gap-3 text-[#6B7280]">
+              <div className="flex items-center gap-3 text-muted-foreground">
                 <User className="size-4 shrink-0" />
                 <span className="w-20 shrink-0">Username</span>
-                <span className="text-[#374151]">{user?.username}</span>
+                <span className="text-card-foreground">{user?.username}</span>
               </div>
-              <div className="flex items-center gap-3 text-[#6B7280]">
+              <div className="flex items-center gap-3 text-muted-foreground">
                 <Mail className="size-4 shrink-0" />
                 <span className="w-20 shrink-0">Email</span>
-                <span className="text-[#374151]">{user?.email}</span>
+                <span className="text-card-foreground">{user?.email}</span>
               </div>
             </div>
             <Separator />

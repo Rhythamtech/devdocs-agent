@@ -28,3 +28,16 @@ class UserCreate(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+class DocInfo(BaseModel):
+    filename: str
+    size_bytes: int
+    uploaded_at: str
+
+class DocsListResponse(BaseModel):
+    docs: list[DocInfo]
+
+class UploadResponse(BaseModel):
+    filename: str
+    message: str
+

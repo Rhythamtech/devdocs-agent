@@ -8,13 +8,13 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-white text-[#374151] hover:bg-gray-50 border border-[#E5E7EB] shadow-sm",
-        outline: "border border-[#E5E7EB] bg-transparent text-[#6B7280] hover:border-[#D1D5DB] hover:text-[#1A1A2E] hover:bg-white",
-        secondary: "bg-[#F3F4F6] text-[#374151] hover:bg-[#E5E7EB]",
-        ghost: "bg-transparent text-[#6B7280] hover:bg-[#F3F4F6] hover:text-[#1A1A2E]",
-        destructive: "bg-red-50 text-[#DC2626] hover:bg-red-100 border border-red-200",
-        link: "text-[#2D5AE0] underline-offset-4 hover:underline rounded-lg",
-        primary: "bg-[#2D5AE0] text-white hover:bg-[#2450C8] font-semibold shadow-sm shadow-[#2D5AE0]/20",
+        default: "bg-card text-card-foreground hover:bg-muted border border-border shadow-sm",
+        outline: "border border-border bg-transparent text-muted-foreground hover:border-border hover:text-foreground hover:bg-card",
+        secondary: "bg-secondary text-secondary-foreground hover:bg-muted",
+        ghost: "bg-transparent text-muted-foreground hover:bg-secondary hover:text-foreground",
+        destructive: "bg-destructive/10 text-destructive hover:bg-destructive/20 border border-destructive/20",
+        link: "text-primary underline-offset-4 hover:underline rounded-lg",
+        primary: "bg-primary text-primary-foreground hover:opacity-90 font-semibold shadow-sm shadow-primary/20",
       },
       size: {
         default: "h-10 px-4 py-2",

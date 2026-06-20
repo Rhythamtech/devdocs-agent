@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, status, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pathlib import Path
 from agent import DocumentationAgent
 from core.state import state
 from core.config import settings
@@ -15,6 +16,12 @@ from slowapi.errors import RateLimitExceeded
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Ensure uploads directory exists
+    backend_dir = Path(__file__).resolve().parent
+    uploads_dir = (backend_dir / settings.UPLOADS_ROOT).resolve()
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    logger.info(f"Uploads directory verified: {uploads_dir}")
+
     # ── Agent init (non-fatal — degraded mode if it fails) ─────────────────
     try:
         state.agent = DocumentationAgent()
@@ -45,7 +52,13 @@ async def lifespan(app: FastAPI):
         await state.mongo_client.close()
     logger.info("Shutdown")
 
-app = FastAPI(title="Documentation Assistant API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(
+    title="Documentation Assistant API",
+    version="1.0.0",
+    lifespan=lifespan,
+    docs_url="/api/docs",
+    redoc_url="/api/redoc"
+)
 app.state.limiter = state.limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 

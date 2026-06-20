@@ -19,12 +19,12 @@ export function ToolCallCard({ name, args, result }: ToolCallCardProps) {
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <div className="overflow-hidden rounded-lg border border-[#E5E7EB] bg-white transition-colors hover:border-[#D1D5DB]">
+      <div className="overflow-hidden rounded-lg border border-border bg-card transition-colors hover:border-border/80">
         <CollapsibleTrigger
           render={<Button
             variant="ghost"
             size="sm"
-            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-[#6B7280] hover:text-[#374151] focus-visible:ring-2 focus-visible:ring-[#2D5AE0]/20"
+            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-card-foreground focus-visible:ring-2 focus-visible:ring-primary/20"
           >
             <motion.div
               animate={{ rotate: open ? 90 : 0 }}
@@ -32,11 +32,11 @@ export function ToolCallCard({ name, args, result }: ToolCallCardProps) {
             >
               <ChevronDown className="size-3.5" />
             </motion.div>
-            <Code className="size-3.5 text-[#2D5AE0]" />
-            <span className="font-medium text-[#374151]">{name}</span>
+            <Code className="size-3.5 text-primary" />
+            <span className="font-medium text-card-foreground">{name}</span>
             <Badge
               variant="secondary"
-              className="ml-auto bg-[#EEF2FF] text-[10px] text-[#2D5AE0] border-0"
+              className="ml-auto bg-primary/10 text-[10px] text-primary border-0"
             >
               tool
             </Badge>
@@ -52,17 +52,17 @@ export function ToolCallCard({ name, args, result }: ToolCallCardProps) {
                 transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                 className="overflow-hidden"
               >
-                <div className="space-y-3 border-t border-[#E5E7EB] px-3 pb-3 pt-2">
+                <div className="space-y-3 border-t border-border px-3 pb-3 pt-2">
                   <div className="space-y-1">
-                    <p className="text-xs font-medium text-[#9CA3AF]">Arguments</p>
-                    <pre className="overflow-x-auto rounded-lg bg-[#F9FAFB] border border-[#E5E7EB] p-3 font-mono text-xs leading-relaxed text-[#6B7280]">
+                    <p className="text-xs font-medium text-muted-foreground/70">Arguments</p>
+                    <pre className="overflow-x-auto rounded-lg bg-muted border border-border p-3 font-mono text-xs leading-relaxed text-muted-foreground">
                       {formatArgs(args)}
                     </pre>
                   </div>
                   {result && (
                     <div className="space-y-1">
-                      <p className="text-xs font-medium text-[#9CA3AF]">Result</p>
-                      <pre className="overflow-x-auto rounded-lg bg-[#F9FAFB] border border-[#E5E7EB] p-3 font-mono text-xs leading-relaxed text-[#6B7280]">
+                      <p className="text-xs font-medium text-muted-foreground/70">Result</p>
+                      <pre className="overflow-x-auto rounded-lg bg-muted border border-border p-3 font-mono text-xs leading-relaxed text-muted-foreground">
                         {result}
                       </pre>
                     </div>

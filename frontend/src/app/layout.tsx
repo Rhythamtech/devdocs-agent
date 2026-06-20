@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { Outfit, IBM_Plex_Mono } from "next/font/google"
+import { ThemeProvider } from "next-themes"
 import "./globals.css"
 import { Providers } from "./providers"
 
@@ -29,9 +30,12 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${outfit.variable} ${ibmPlexMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
-        <Providers>{children}</Providers>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <Providers>{children}</Providers>
+        </ThemeProvider>
       </body>
     </html>
   )

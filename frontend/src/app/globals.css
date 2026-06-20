@@ -85,6 +85,40 @@
   --sidebar-ring: #2D5AE0;
 }
 
+.dark {
+  --background: #0C0C0F;
+  --foreground: #E4E4E7;
+  --card: #161619;
+  --card-foreground: #D4D4D8;
+  --popover: #161619;
+  --popover-foreground: #D4D4D8;
+  --primary: #5B8DEF;
+  --primary-foreground: #0C0C0F;
+  --secondary: #1E1E22;
+  --secondary-foreground: #E4E4E7;
+  --muted: #1E1E22;
+  --muted-foreground: #A1A1AA;
+  --accent: #5B8DEF;
+  --accent-foreground: #0C0C0F;
+  --destructive: #F87171;
+  --border: #27272A;
+  --input: #27272A;
+  --ring: #5B8DEF;
+  --chart-1: #5B8DEF;
+  --chart-2: #34D399;
+  --chart-3: #FBBF24;
+  --chart-4: #A78BFA;
+  --chart-5: #F87171;
+  --sidebar: #111113;
+  --sidebar-foreground: #D4D4D8;
+  --sidebar-primary: #5B8DEF;
+  --sidebar-primary-foreground: #0C0C0F;
+  --sidebar-accent: #1E1E22;
+  --sidebar-accent-foreground: #E4E4E7;
+  --sidebar-border: #27272A;
+  --sidebar-ring: #5B8DEF;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -103,8 +137,8 @@
 }
 
 ::selection {
-  background-color: rgba(45, 90, 224, 0.15);
-  color: #1A1A2E;
+  background-color: color-mix(in srgb, var(--primary) 15%, transparent);
+  color: var(--foreground);
 }
 
 ::-webkit-scrollbar {
@@ -117,12 +151,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.12);
+  background: color-mix(in srgb, var(--foreground) 12%, transparent);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.2);
+  background: color-mix(in srgb, var(--foreground) 20%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {

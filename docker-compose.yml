@@ -31,6 +31,8 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
+    volumes:
+      - uploads_data:/app/backend/docs/uploads
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 15s
@@ -55,3 +57,5 @@ services:
 
 volumes:
   mongo_data:
+  uploads_data:
+

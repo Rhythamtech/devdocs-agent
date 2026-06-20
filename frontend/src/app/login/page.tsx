@@ -65,9 +65,9 @@ export default function LoginPage() {
               {loading ? "Signing in..." : "Sign In"}
             </Button>
           </form>
-          <p className="mt-6 text-center text-sm text-[#6B7280]">
+          <p className="mt-6 text-center text-sm text-muted-foreground">
             Don&apos;t have an account?{" "}
-            <Link href="/signup" className="font-medium text-[#2D5AE0] hover:underline">
+            <Link href="/signup" className="font-medium text-primary hover:underline">
               Create one
             </Link>
           </p>

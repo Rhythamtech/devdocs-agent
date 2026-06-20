@@ -185,3 +185,49 @@ export async function retryChatMessage(
     token,
   })
 }
+
+export interface DocInfo {
+  filename: string
+  size_bytes: number
+  uploaded_at: string
+}
+
+export async function listDocuments(token: string | null): Promise<DocInfo[]> {
+  const res = await apiRequest<{ docs: DocInfo[] }>("/docs", {
+    method: "GET",
+    token,
+  })
+  return res.docs || []
+}
+
+export async function uploadDocument(
+  file: File,
+  token: string | null,
+): Promise<{ filename: string; message: string }> {
+  const formData = new FormData()
+  formData.append("file", file)
+
+  const headers: Record<string, string> = {}
+  if (token) headers["Authorization"] = `Bearer ${token}`
+
+  const res = await fetch(`${API_BASE}/docs/upload`, {
+    method: "POST",
+    headers,
+    body: formData,
+  })
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: { message: res.statusText } }))
+    throw new Error(err.error?.message || err.detail || "Upload failed")
+  }
+
+  return res.json()
+}
+
+export async function deleteDocument(filename: string, token: string | null): Promise<void> {
+  await apiRequest<void>(`/docs/${encodeURIComponent(filename)}`, {
+    method: "DELETE",
+    token,
+  })
+}
+

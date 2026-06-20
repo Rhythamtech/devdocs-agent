@@ -18,8 +18,8 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex flex-1 items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <div className="size-8 animate-spin rounded-full border-2 border-[#E5E7EB] border-t-[#2D5AE0]" />
-          <p className="text-sm text-[#9CA3AF]">Loading...</p>
+          <div className="size-8 animate-spin rounded-full border-2 border-border border-t-primary" />
+          <p className="text-sm text-muted-foreground/70">Loading...</p>
         </div>
       </div>
     )

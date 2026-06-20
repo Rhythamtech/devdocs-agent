@@ -38,7 +38,7 @@ export function ChatSidebar({
   }
 
   return (
-    <div className="flex h-full flex-col border-r border-[#E5E7EB] bg-[#F9FAFB]">
+    <div className="flex h-full flex-col border-r border-border bg-muted">
       <div className="p-3">
         <Button
           onClick={onNew}
@@ -55,7 +55,7 @@ export function ChatSidebar({
       <ScrollArea className="flex-1">
         <div className="space-y-0.5 p-2">
           {sessions.length === 0 ? (
-            <p className="px-3 py-8 text-center text-xs text-[#9CA3AF]">
+            <p className="px-3 py-8 text-center text-xs text-muted-foreground/70">
               No conversations yet
             </p>
           ) : (
@@ -71,17 +71,17 @@ export function ChatSidebar({
                     onClick={() => onSelect(session.session_id)}
                     className={`
                       relative w-full cursor-pointer rounded-lg px-3 py-2.5 text-left text-sm transition-colors duration-150
-                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2D5AE0]/20 focus-visible:border-[#2D5AE0]
+                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary
                       ${isActive
-                        ? "bg-[#EEF2FF] text-[#1A1A2E] font-medium"
-                        : "text-[#6B7280] hover:bg-white hover:text-[#374151]"
+                        ? "bg-primary/10 text-foreground font-medium"
+                        : "text-muted-foreground hover:bg-card hover:text-card-foreground"
                       }
                     `}
                   >
                     {isActive && (
                       <motion.div
                         layoutId="activeSession"
-                        className="absolute inset-y-0 left-0 w-[2px] rounded-full bg-[#2D5AE0]"
+                        className="absolute inset-y-0 left-0 w-[2px] rounded-full bg-primary"
                         transition={{ type: "spring", stiffness: 300, damping: 30 }}
                       />
                     )}
@@ -105,8 +105,8 @@ export function ChatSidebar({
           size="sm"
           className={`w-full gap-2 text-sm transition-colors ${
             confirmClear
-              ? "text-[#DC2626] bg-red-50 hover:bg-red-100"
-              : "text-[#9CA3AF] hover:text-[#DC2626]"
+              ? "text-destructive bg-destructive/10 hover:bg-destructive/20"
+              : "text-muted-foreground/70 hover:text-destructive"
           }`}
           onClick={handleClearAll}
         >

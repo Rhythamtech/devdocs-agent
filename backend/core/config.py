@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     RATE_LIMIT_CHATS: str = "30/minute"
     RATE_LIMIT_GLOBAL: str = "60/minute"
     RATE_LIMIT_RETRY: str = "3/minute;15/day"
+
+    UPLOADS_ROOT: str = "docs/uploads"
+    MAX_UPLOAD_SIZE_BYTES: int = 2097152  # 2 MB
+    RATE_LIMIT_DOCS_UPLOAD: str = "5/minute"
+    RATE_LIMIT_DOCS_LIST: str = "30/minute"
+    RATE_LIMIT_DOCS_DELETE: str = "10/minute"
     
     model_config = SettingsConfigDict(
         env_file=ROOT_DIR / ".env",
