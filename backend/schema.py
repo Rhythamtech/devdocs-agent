@@ -17,6 +17,9 @@ class AskRequest(BaseModel):
     prompt: str
     session_id: Optional[str] = None
 
+class RetryRequest(BaseModel):
+    session_id: str
+
 class UserCreate(BaseModel):
     username: str
     email: str

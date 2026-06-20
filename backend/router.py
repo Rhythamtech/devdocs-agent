@@ -1,19 +1,32 @@
 import datetime
+from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
+from pymongo.asynchronous.database import AsyncDatabase
 from core.state import state
-from schema import UserCreate, AskRequest, AgentResponse
+from core.config import settings
+from schema import UserCreate, AskRequest, AgentResponse, RetryRequest
 from utils.auth import hash_password, verify_password, create_access_token, verify_access_token, oauth2_scheme
-from core.logger import logger
-from core.limiter import limiter
 
 router = APIRouter()
+limiter = state.limiter
+
 
 MAX_PROMPT_LENGTH = 10_000
 
-async def authenticate_user(username: str, password: str):
-    is_exist = await state.db.users.find_one({"username": username})
+async def get_db() -> AsyncDatabase:
+    if state.db is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database connection is not available.",
+        )
+    return state.db
+
+DatabaseDep = Annotated[AsyncDatabase, Depends(get_db)]
+
+async def authenticate_user(username: str, password: str, db: AsyncDatabase):
+    is_exist = await db.users.find_one({"username": username})
     
     if not is_exist:
         raise HTTPException(
@@ -53,12 +66,13 @@ def validate_prompt(prompt: str) -> str:
     return cleaned
 
 @router.post("/auth/signup")
-async def signup(user: UserCreate, request: Request):
+@limiter.limit(settings.RATE_LIMIT_SIGNUP)
+async def signup(user: UserCreate, request: Request, db: DatabaseDep):
     data = user.model_dump()
     data["username"] = data["username"].strip().lower()
     data["email"] = data["email"].strip().lower()
 
-    is_exist = await state.db.users.find_one({'$or': [{"username": data["username"]}, {"email": data["email"]}]})
+    is_exist = await db.users.find_one({'$or': [{"username": data["username"]}, {"email": data["email"]}]})
     if is_exist:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -68,7 +82,7 @@ async def signup(user: UserCreate, request: Request):
     data.update({"hash_password": hash_password(data["password"])})
     data.update({"created_at": datetime.datetime.now()})
         
-    result = await state.db.users.insert_one(data)
+    result = await db.users.insert_one(data)
     
     return {
         "message": "User created successfully",
@@ -76,8 +90,9 @@ async def signup(user: UserCreate, request: Request):
     }
 
 @router.post("/auth/login")
-async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
-    user = await authenticate_user(form_data.username, form_data.password)
+@limiter.limit(settings.RATE_LIMIT_LOGIN)
+async def login(request: Request, db: DatabaseDep, form_data: OAuth2PasswordRequestForm = Depends()):
+    user = await authenticate_user(form_data.username, form_data.password, db)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -88,12 +103,13 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
     return {"access_token": token, "token_type": "bearer"}
 
 @router.get('/auth/me')
-async def me(token: str = Depends(oauth2_scheme)):
+async def me(request: Request, db: DatabaseDep, token: str = Depends(oauth2_scheme)):
     exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"}
     )
+    
     
     try:
         payload = verify_access_token(token)
@@ -103,7 +119,7 @@ async def me(token: str = Depends(oauth2_scheme)):
     except:
         raise exception
 
-    user = await state.db.users.find_one({'$or': [{"username": username}, {"email": username}]})
+    user = await db.users.find_one({'$or': [{"username": username}, {"email": username}]})
     if not user:
         raise exception
     
@@ -114,7 +130,8 @@ async def me(token: str = Depends(oauth2_scheme)):
     }
 
 @router.get("/health")
-def health():
+@limiter.exempt
+def health(request: Request):
     if state.agent is None:
         return {
             "status": "degraded",
@@ -127,7 +144,7 @@ def health():
     }
 
 @router.post("/ask", response_model=AgentResponse, status_code=status.HTTP_200_OK)
-@limiter.limit("10/minute")
+@limiter.limit(settings.RATE_LIMIT_ASK)
 def ask_docs(req: AskRequest, request: Request, token: str = Depends(oauth2_scheme)) -> AgentResponse:
     prompt = validate_prompt(req.prompt)
     user = verify_access_token(token)
@@ -158,7 +175,7 @@ def ask_docs(req: AskRequest, request: Request, token: str = Depends(oauth2_sche
         )
 
 @router.post("/ask/stream")
-@limiter.limit("10/minute")
+@limiter.limit(settings.RATE_LIMIT_ASK_STREAM)
 def ask_docs_stream(req: AskRequest, request: Request, token: str = Depends(oauth2_scheme)):
     prompt = validate_prompt(req.prompt)
     user = verify_access_token(token)
@@ -199,7 +216,8 @@ def ask_docs_stream(req: AskRequest, request: Request, token: str = Depends(oaut
         )
 
 @router.get("/chats")
-def get_chats(session_id: str, token: str = Depends(oauth2_scheme)):
+@limiter.limit(settings.RATE_LIMIT_CHATS)
+def get_chats(request: Request, session_id: str, token: str = Depends(oauth2_scheme)):
     user = verify_access_token(token)
     
     if not session_id:
@@ -219,3 +237,60 @@ def get_chats(session_id: str, token: str = Depends(oauth2_scheme)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve chat history.",
         )
+
+@router.post("/chats/retry")
+@limiter.limit(settings.RATE_LIMIT_RETRY)
+async def retry_chat(req: RetryRequest, request: Request, db: DatabaseDep, token: str = Depends(oauth2_scheme)):
+    user = verify_access_token(token)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+        )
+    
+    doc = await db.agno_sessions.find_one({"session_id": req.session_id})
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found.",
+        )
+    
+    runs = doc.get("runs", [])
+    if not runs:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No chat history to retry.",
+        )
+    
+    last_run = runs[-1]
+    
+    prompt = None
+    messages = last_run.get("messages", [])
+    if messages:
+        for msg in messages:
+            if msg.get("role") == "user":
+                prompt = msg.get("content")
+                break
+    
+    if not prompt:
+        prompt = last_run.get("input", {}).get("input_content")
+        
+    if not prompt:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Could not retrieve the prompt to retry.",
+        )
+    
+    result = await db.agno_sessions.update_one(
+        {"session_id": req.session_id},
+        {"$pop": {"runs": 1}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update session history.",
+        )
+        
+    return {"prompt": prompt}
+

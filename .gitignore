@@ -9,9 +9,40 @@ wheels/
 # Virtual environments
 .venv
 .env
+.env*
 .gemini
 .gitignore
 /.agents
 skills-lock.json
 next-steps.md
 database-design.md
+agentops.log
+
+# Frontend dependencies and builds
+frontend/node_modules/
+frontend/.pnp
+frontend/.pnp.*
+frontend/.yarn/*
+!frontend/.yarn/patches
+!frontend/.yarn/plugins
+!frontend/.yarn/releases
+!frontend/.yarn/versions
+
+# Frontend testing & builds
+frontend/coverage/
+frontend/.next/
+frontend/out/
+frontend/build/
+
+# Frontend misc & debug
+frontend/*.tsbuildinfo
+frontend/next-env.d.ts
+frontend/.vercel
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*.pem
+
+# General misc
+.DS_Store

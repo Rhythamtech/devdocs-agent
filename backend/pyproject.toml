@@ -5,10 +5,11 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "agentops>=0.4.21",
     "agno>=2.6.9",
     "ddgs>=9.14.4",
     "fastapi[standard]>=0.136.3",
-    "keymesh>=0.1.2a0",
+    "keymesh",
     "langfuse>=4.7.1",
     "openai>=2.38.0",
     "pwdlib[argon2]>=0.3.0",
@@ -19,3 +20,6 @@ dependencies = [
     "slowapi>=0.1.9",
     "sqlalchemy>=2.0.50",
 ]
+
+[tool.uv.sources]
+keymesh = { url = "https://test-files.pythonhosted.org/packages/f0/9d/1a346c458562b9c9f57815cc7dc6a6498db7ae5e407df52a23576cc44640/keymesh-0.1.2rc5-py3-none-any.whl" }

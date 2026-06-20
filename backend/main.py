@@ -1,49 +1,54 @@
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request, status, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from agent import DocumentationAgent
 from core.state import state
 from core.config import settings
+from core.logger import logger
 from pymongo import AsyncMongoClient
+from fastapi import HTTPException
 from contextlib import asynccontextmanager
+from router import router
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
-from core.logger import logger
-from core.limiter import limiter
-from router import router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # ── Agent init (non-fatal — degraded mode if it fails) ─────────────────
     try:
         state.agent = DocumentationAgent()
         logger.info("Agent initialized")
-
-        state.mongo_client = AsyncMongoClient(settings.MONGO_DB_URL)
-        db = state.mongo_client[settings.MONGO_DATABSE_NAME]
-        state.db = db
-
-        await db.users.create_index("username", unique=True)
-        await db.users.create_index("email", unique=True)
-
-        yield
-
-        state.mongo_client.close()
-
     except Exception as e:
         state.startup_errors.append(str(e))
         state.agent = None
         logger.error(f"Agent startup failed: {e}")
-        yield
 
+    # ── Database init (runs regardless of agent status) ────────────────────
+    try:
+        state.mongo_client = AsyncMongoClient(settings.MONGO_DB_URL)
+        state.db = state.mongo_client[settings.MONGO_DATABASE_NAME]
+
+        await state.db.users.create_index("username", unique=True)
+        await state.db.users.create_index("email", unique=True)
+
+        logger.info("Database connected")
+    except Exception as e:
+        state.startup_errors.append(str(e))
+        state.db = None
+        logger.error(f"Database startup failed: {e}")
+
+    yield
+
+    # ── Shutdown ───────────────────────────────────────────────────────────
+    if state.mongo_client is not None:
+        await state.mongo_client.close()
     logger.info("Shutdown")
 
 app = FastAPI(title="Documentation Assistant API", version="1.0.0", lifespan=lifespan)
-app.state.limiter = limiter
+app.state.limiter = state.limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-app.add_middleware(SlowAPIMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOW_ORIGINS.split(","),
@@ -73,7 +78,6 @@ async def not_found_exception_handler(request: Request, exc: Exception):
         error_code="not_found",
     )
 
-from fastapi import HTTPException
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
