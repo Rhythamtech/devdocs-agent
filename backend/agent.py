@@ -1,3 +1,4 @@
+import json
 import os
 from typing import Any, Iterator
 
@@ -9,10 +10,9 @@ from agno.models.openai.like import OpenAILike
 from agno.session import SessionSummaryManager
 from core.config import settings
 from dotenv import load_dotenv
-from keymesh import SchedulerStrategy, SyncKeyPool
+from keymesh import SchedulerStrategy, OpenAIHandler
 from openai import OpenAI
 from schema import AgentResponse, ToolResponse
-from utils.handler import SyncKeymeshTransport
 from utils.tools import grep, list_all_docs, read_doc, read_slice_doc
 
 
@@ -67,21 +67,18 @@ class DocumentationAgent:
             session_summary_manager=session_manager,
             max_tool_calls_from_history=0,
             db=MongoDb(db_url=settings.MONGO_DB_URL
-                       ,db_name=settings.MONGO_DATABSE_NAME),
+                       ,db_name=settings.MONGO_DATABASE_NAME),
             read_chat_history=True,  # Agent gets a get_chat_history() tool
         )
 
     def _build_openai_client(self) -> OpenAI:
         api_keys = self._load_api_keys()
-        self._pool = SyncKeyPool(keys=api_keys, strategy=SchedulerStrategy.ROUND_ROBIN)
-
-        transport = SyncKeymeshTransport(httpx.HTTPTransport(), self._pool)
-        http_client = httpx.Client(transport=transport)
+        openai_handler = OpenAIHandler(keys=api_keys, strategy=SchedulerStrategy.ROUND_ROBIN)
 
         return OpenAI(
             api_key="dummy",  # Replaced dynamically by transport
             base_url=settings.OPENAI_BASE_URL,
-            http_client=http_client,
+            http_client=openai_handler,
         )
 
     def _load_api_keys(self) -> list[str]:
@@ -147,7 +144,7 @@ class DocumentationAgent:
             if event.event == RunEvent.tool_call_started and event.tool:
                 yield f"data: Tool Call: {event.tool.tool_name}({event.tool.tool_args})\n\n"
             elif event.event == RunEvent.run_content and event.content:
-                yield f"data: {event.content}\n\n"
+                yield f"data: {json.dumps(event.content)}\n\n"
 
         yield "data: [DONE]\n\n"
 
