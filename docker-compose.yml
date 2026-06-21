@@ -10,16 +10,11 @@ services:
     env_file:
       - .env                       # all secrets live here
     environment:
-      # Override the Mongo URL to point at the compose service
-      MONGO_DB_URL: mongodb://mongo:27017
-      ALLOW_ORIGINS: "http://localhost:3000"
-    depends_on:
-      mongo:
-        condition: service_healthy
+      ALLOW_ORIGINS: "http://[IP_ADDRESS]"
     volumes:
       - uploads_data:/app/backend/docs/uploads
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://[IP_ADDRESS]/health"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -31,7 +26,7 @@ services:
       dockerfile: Dockerfile
       args:
         # Baked into the JS bundle at build time
-        NEXT_PUBLIC_API_URL: http://localhost:8000
+        NEXT_PUBLIC_API_URL: http://[IP_ADDRESS]
         NEXT_PUBLIC_MOCK_MODE: "false"
     restart: unless-stopped
     ports:
