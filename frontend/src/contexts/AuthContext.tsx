@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react"
-import { apiRequest, type UserProfile } from "@/lib/api"
+import { apiRequest, type UserProfile, API_BASE } from "@/lib/api"
 import { useRouter } from "next/navigation"
 
 interface AuthState {
@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
     } else {
       const res = await fetch(
-        `/auth/login`,
+        `${API_BASE}/auth/login`,
         {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },

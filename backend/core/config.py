@@ -10,7 +10,11 @@ def _find_root() -> Path:
     for parent in [current] + list(current.parents):
         if (parent / ".env").exists():
             return parent
-    return current.parents[2]
+    # If no .env exists (like in a Docker container), find the directory containing project files
+    for parent in [current] + list(current.parents):
+        if (parent / "pyproject.toml").exists() or (parent / "main.py").exists():
+            return parent
+    return current
 
 ROOT_DIR = _find_root()
 

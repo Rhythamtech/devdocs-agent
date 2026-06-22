@@ -1,26 +1,64 @@
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  uploads-data:
+    driver: local
+
 services:
-  app:
+  backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
-      args:
-        # Rewrites in next.config.ts proxy API calls server-side (localhost:8000),
-        # so the browser never calls the backend directly.
-        # Leave blank — the Next.js rewrites handle routing internally.
-        NEXT_PUBLIC_API_URL: ""
-        NEXT_PUBLIC_MOCK_MODE: "false"
-    ports:
-      - "3000:3000"
-      - "8000:8000"
-    env_file:
-      - .env
+    container_name: devdocs-backend
+    restart: always
     environment:
-      # Runtime env-vars for the backend process
-      - NEXT_PUBLIC_API_URL=
-      - NEXT_PUBLIC_MOCK_MODE=false
+      - OPENAI_API_KEYS=${OPENAI_API_KEYS}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL}
+      - OPENAI_MODEL=${OPENAI_MODEL}
+      - AGENTOPS_API_KEY=${AGENTOPS_API_KEY}
+      - MONGO_DB_URL=${MONGO_DB_URL}
+      - MONGO_DATABASE_NAME=${MONGO_DATABASE_NAME}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRE_IN_MINUTES=${JWT_EXPIRE_IN_MINUTES}
+      - JWT_ALGORITHM=${JWT_ALGORITHM}
+      - ALLOW_ORIGINS=${ALLOW_ORIGINS:-*}
+    volumes:
+      - uploads-data:/app/docs/uploads
+    networks:
+      - app-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 15s
       timeout: 5s
-      retries: 5
-      start_period: 30s
+      retries: 3
+      start_period: 15s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: devdocs-frontend
+    restart: always
+    networks:
+      - app-network
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: devdocs-nginx
+    restart: always
+    ports:
+      - "80:80"
+    networks:
+      - app-network
+    depends_on:
+      frontend:
+        condition: service_started
+      backend:
+        condition: service_healthy
