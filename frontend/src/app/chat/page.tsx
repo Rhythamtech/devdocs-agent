@@ -46,7 +46,7 @@ function generateSessionId(): string {
   })
 }
 
-function ChatPage() {
+export default function ChatPage() {
   const { token } = useAuth()
   const { sessions, addSession, clearAll, refresh: refreshSessions } = useChatHistory()
   const [messages, setMessages] = useState<Message[]>([])
@@ -564,6 +564,4 @@ function ChatPage() {
   )
 }
 
-export default function Page() {
-  return <ChatPage />
-}
+

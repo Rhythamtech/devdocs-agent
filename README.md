@@ -196,23 +196,33 @@ Mock credentials: `admin` / `admin`
 ```
 devdocs-agent/
 ├── backend/
-│   ├── app/
-│   │   ├── main.py              # FastAPI app, middleware, startup
-│   │   ├── auth.py              # JWT + Argon2id auth
-│   │   ├── routes/              # API route handlers
-│   │   └── dependencies.py      # DI (get_current_user, etc.)
-│   ├── agent/                   # Agno agent config + prompt
+│   ├── main.py                  # FastAPI app, middleware, startup
+│   ├── agent.py                 # Agno agent config + prompt
+│   ├── router.py                # API route handlers
+│   ├── schema.py                # Pydantic models
+│   ├── core/
+│   │   ├── config.py            # Pydantic settings (env vars)
+│   │   ├── state.py             # Global AppState (agent, db, limiter)
+│   │   └── logger.py            # Logging setup
 │   ├── utils/
 │   │   ├── tools.py             # 4 agent tools (list, grep, read)
-│   │   └── llm.py               # LLM provider setup + Keymesh
+│   │   ├── auth.py              # JWT + Argon2id auth
+│   │   └── file_handler.py      # Upload/save/delete/list files
 │   ├── docs/uploads/            # User-uploaded documents
 │   └── pyproject.toml
 ├── frontend/
 │   ├── src/
 │   │   ├── app/                 # Next.js App Router pages
-│   │   ├── components/          # UI components (chat, docs, layout)
-│   │   ├── lib/api.ts           # API client + SSE parser
-│   │   └── contexts/            # AuthContext
+│   │   │   ├── chat/            # Chat page (SSE streaming)
+│   │   │   ├── docs/            # Document management
+│   │   │   ├── login/           # Login page
+│   │   │   ├── signup/          # Signup page
+│   │   │   ├── profile/         # Profile page
+│   │   │   └── page.tsx         # Landing page
+│   │   ├── components/          # UI components (chat, docs, layout, ui)
+│   │   ├── contexts/            # AuthContext
+│   │   ├── hooks/               # useChatHistory
+│   │   └── lib/api.ts           # API client + SSE parser
 │   └── package.json
 ├── docker-compose.yml           # 3-service deployment
 ├── start.sh                     # Local dev launcher

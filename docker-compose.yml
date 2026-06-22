@@ -1,41 +1,52 @@
 services:
-  # ── FastAPI Backend ────────────────────────────────────────────────────────
+  mongodb:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - dokploy-network
+
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
     restart: unless-stopped
-    ports:
-      - "8000:8000"
-    env_file:
-      - .env                       # all secrets live here
+    depends_on:
+      - mongodb
     environment:
-      ALLOW_ORIGINS: "http://[IP_ADDRESS]"
+      MONGO_DB_URL: mongodb://mongodb:27017/${MONGO_DATABASE_NAME:-docs-agent-db}
+      MONGO_DATABASE_NAME: ${MONGO_DATABASE_NAME:-docs-agent-db}
+      OPENAI_API_KEYS: ${OPENAI_API_KEYS:?error}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.groq.com/openai/v1}
+      OPENAI_MODEL: ${OPENAI_MODEL:-qwen/qwen3-32b}
+      AGENTOPS_API_KEY: ${AGENTOPS_API_KEY:-}
+      JWT_SECRET: ${JWT_SECRET:?error}
+      JWT_EXPIRE_IN_MINUTES: ${JWT_EXPIRE_IN_MINUTES:-15}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      ALLOW_ORIGINS: ${ALLOW_ORIGINS:-*}
     volumes:
-      - uploads_data:/app/backend/docs/uploads
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://[IP_ADDRESS]/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
+      - user_docs:/app/uploads
+    networks:
+      - dokploy-network
 
-  # ── Next.js Frontend ───────────────────────────────────────────────────────
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        # Baked into the JS bundle at build time
-        NEXT_PUBLIC_API_URL: http://[IP_ADDRESS]
+        NEXT_PUBLIC_API_URL: ""
         NEXT_PUBLIC_MOCK_MODE: "false"
     restart: unless-stopped
-    ports:
-      - "3000:3000"
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
+    networks:
+      - dokploy-network
 
 volumes:
-  mongo_data:
-  uploads_data:
+  mongodb_data:
+  user_docs:
 
+networks:
+  dokploy-network:
+    external: true

@@ -8,7 +8,6 @@ from core.state import state
 from core.config import settings
 from core.logger import logger
 from pymongo import AsyncMongoClient
-from fastapi import HTTPException
 from contextlib import asynccontextmanager
 from router import router
 from slowapi import _rate_limit_exceeded_handler

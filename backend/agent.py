@@ -3,7 +3,6 @@ import os
 from typing import Any, Iterator
 
 import agentops
-import httpx
 from agno.agent import Agent, RunEvent
 from agno.db.mongo import MongoDb
 from agno.models.openai.like import OpenAILike
@@ -156,15 +155,3 @@ class DocumentationAgent:
             if "Session not found" in str(e):
                 return []
             raise e
-
-
-# if __name__ == "__main__":
-#     agent = DocumentationAgent()
-#     prompt = "What caching strategies are available in Redis?"
-#     print(f"Question: {prompt}\n")
-#     # response = agent.stream(prompt, session_id="test-session")
-#     # for chunk in response:
-#     #     print(chunk, end="", flush=True)
-#     response = agent.ask(prompt, session_id="test-session")
-#     print(f"Answer: {response.content}\n")
-

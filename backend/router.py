@@ -7,9 +7,10 @@ from fastapi.security import OAuth2PasswordRequestForm
 from pymongo.asynchronous.database import AsyncDatabase
 from core.state import state
 from core.config import settings
-from schema import UserCreate, AskRequest, AgentResponse, RetryRequest, DocInfo, DocsListResponse, UploadResponse
+from schema import UserCreate, AskRequest, AgentResponse, RetryRequest, DocInfo, DocsListResponse, UploadResponse, SessionInfo, SessionsListResponse
 from utils.auth import hash_password, verify_password, create_access_token, verify_access_token, oauth2_scheme
-from utils.file_handler import save_upload, delete_upload, list_uploads
+from utils.file_handler import save_upload, delete_upload, list_uploads, get_user_upload_dir, initialize_user_docs
+from utils.tools import current_user_docs_dir
 
 
 router = APIRouter()
@@ -17,6 +18,23 @@ limiter = state.limiter
 
 
 MAX_PROMPT_LENGTH = 10_000
+
+AuthException = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="Invalid or expired token",
+    headers={"WWW-Authenticate": "Bearer"},
+)
+
+def get_current_username(token: str = Depends(oauth2_scheme)) -> str:
+    payload = verify_access_token(token)
+    if not payload:
+        raise AuthException
+    username = payload.get("sub")
+    if not username:
+        raise AuthException
+    return username
+
+CurrentUser = Annotated[str, Depends(get_current_username)]
 
 async def get_db() -> AsyncDatabase:
     if state.db is None:
@@ -87,7 +105,6 @@ async def signup(user: UserCreate, request: Request, db: DatabaseDep):
         
     result = await db.users.insert_one(data)
     
-    from utils.file_handler import initialize_user_docs
     initialize_user_docs(data["username"])
     
     return {
@@ -109,25 +126,10 @@ async def login(request: Request, db: DatabaseDep, form_data: OAuth2PasswordRequ
     return {"access_token": token, "token_type": "bearer"}
 
 @router.get('/auth/me')
-async def me(request: Request, db: DatabaseDep, token: str = Depends(oauth2_scheme)):
-    exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"}
-    )
-    
-    
-    try:
-        payload = verify_access_token(token)
-        username = payload.get("sub")    
-        if not username:
-            raise exception
-    except:
-        raise exception
-
-    user = await db.users.find_one({'$or': [{"username": username}, {"email": username}]})
+async def me(request: Request, db: DatabaseDep, username: CurrentUser):
+    user = await db.users.find_one({"username": username})
     if not user:
-        raise exception
+        raise AuthException
     
     return {
         "id": str(user["_id"]),
@@ -151,33 +153,12 @@ def health(request: Request):
 
 @router.post("/ask", response_model=AgentResponse, status_code=status.HTTP_200_OK)
 @limiter.limit(settings.RATE_LIMIT_ASK)
-def ask_docs(req: AskRequest, request: Request, token: str = Depends(oauth2_scheme)) -> AgentResponse:
+def ask_docs(req: AskRequest, request: Request, username: CurrentUser) -> AgentResponse:
     prompt = validate_prompt(req.prompt)
-    user = verify_access_token(token)
-
+    user_dir = get_user_upload_dir(username)
+    ctx_token = current_user_docs_dir.set(user_dir)
     try:
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token",
-            )
-        
-        username = user.get("sub")
-        if not username:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Could not retrieve username from token.",
-            )
-        from utils.file_handler import get_user_upload_dir
-        from utils.tools import current_user_docs_dir
-        
-        user_dir = get_user_upload_dir(username)
-        ctx_token = current_user_docs_dir.set(user_dir)
-        try:
-            return state.agent.ask(prompt, session_id=req.session_id)
-        finally:
-            current_user_docs_dir.reset(ctx_token)
-
+        return state.agent.ask(prompt, session_id=req.session_id)
     except HTTPException:
         raise
     except TimeoutError:
@@ -195,6 +176,8 @@ def ask_docs(req: AskRequest, request: Request, token: str = Depends(oauth2_sche
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to process the prompt.",
         )
+    finally:
+        current_user_docs_dir.reset(ctx_token)
 
 class ContextPropagatingGenerator(Iterator[Any]):
     def __init__(self, generator_func: Callable[..., Iterator[Any]], *args: Any, **kwargs: Any) -> None:
@@ -212,76 +195,47 @@ class ContextPropagatingGenerator(Iterator[Any]):
 
 @router.post("/ask/stream")
 @limiter.limit(settings.RATE_LIMIT_ASK_STREAM)
-def ask_docs_stream(req: AskRequest, request: Request, token: str = Depends(oauth2_scheme)):
+def ask_docs_stream(req: AskRequest, request: Request, username: CurrentUser):
     prompt = validate_prompt(req.prompt)
-    user = verify_access_token(token)
+    user_dir = get_user_upload_dir(username)
 
-    try:
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token",
-            )
-
-        username = user.get("sub")
-        if not username:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Could not retrieve username from token.",
-            )
-        from utils.file_handler import get_user_upload_dir
-        from utils.tools import current_user_docs_dir
-        user_dir = get_user_upload_dir(username)
-
-        def event_stream():
-            ctx_token = current_user_docs_dir.set(user_dir)
+    def event_stream():
+        ctx_token = current_user_docs_dir.set(user_dir)
+        try:
+            yield "event: status\ndata: started\n\n"
+            for chunk in state.agent.stream(prompt, session_id=req.session_id):
+                yield chunk
+            yield "event: status\ndata: completed\n\n"
+        except TimeoutError:
+            yield "event: error\ndata: The agent timed out while processing the request.\n\n"
+        except Exception:
+            yield "event: error\ndata: Failed to process the prompt.\n\n"
+        finally:
             try:
-                yield "event: status\ndata: started\n\n"
-                for chunk in state.agent.stream(prompt, session_id=req.session_id):
-                    yield chunk
-                yield "event: status\ndata: completed\n\n"
-            except TimeoutError:
-                yield "event: error\ndata: The agent timed out while processing the request.\n\n"
-            except Exception:
-                yield "event: error\ndata: Failed to process the prompt.\n\n"
-            finally:
-                try:
-                    current_user_docs_dir.reset(ctx_token)
-                except ValueError:
-                    pass
-                yield "event: close\ndata: done\n\n"
+                current_user_docs_dir.reset(ctx_token)
+            except ValueError:
+                pass
+            yield "event: close\ndata: done\n\n"
 
-        return StreamingResponse(
-            ContextPropagatingGenerator(event_stream),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "X-Accel-Buffering": "no",
-            },
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-        )
+    return StreamingResponse(
+        ContextPropagatingGenerator(event_stream),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 @router.get("/chats")
 @limiter.limit(settings.RATE_LIMIT_CHATS)
-def get_chats(request: Request, session_id: str, token: str = Depends(oauth2_scheme)):
-    user = verify_access_token(token)
-    
+def get_chats(request: Request, session_id: str, username: CurrentUser):
     if not session_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="session_id is required.",
         )
     try:
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token",
-            )
         return state.agent.get_chat_history(session_id)
     except Exception:
         raise HTTPException(
@@ -291,13 +245,7 @@ def get_chats(request: Request, session_id: str, token: str = Depends(oauth2_sch
 
 @router.post("/chats/retry")
 @limiter.limit(settings.RATE_LIMIT_RETRY)
-async def retry_chat(req: RetryRequest, request: Request, db: DatabaseDep, token: str = Depends(oauth2_scheme)):
-    user = verify_access_token(token)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-        )
+async def retry_chat(req: RetryRequest, request: Request, db: DatabaseDep, username: CurrentUser):
     
     doc = await db.agno_sessions.find_one({"session_id": req.session_id})
     if not doc:
@@ -345,26 +293,46 @@ async def retry_chat(req: RetryRequest, request: Request, db: DatabaseDep, token
         
     return {"prompt": prompt}
 
+@router.get("/sessions", response_model=SessionsListResponse)
+@limiter.limit("30/minute")
+async def list_sessions(request: Request, db: DatabaseDep, username: CurrentUser):
+    cursor = db.agno_sessions.find(
+        {},
+        {"session_id": 1, "session_name": 1, "created_at": 1, "_id": 0},
+    ).sort("created_at", -1)
+    sessions = []
+    async for doc in cursor:
+        sessions.append(SessionInfo(
+            session_id=doc.get("session_id", ""),
+            title=doc.get("session_name", doc.get("session_id", "Untitled")),
+            created_at=str(doc.get("created_at", "")),
+        ))
+    return SessionsListResponse(sessions=sessions)
+
+@router.delete("/sessions/{session_id}")
+@limiter.limit("30/minute")
+async def delete_session(session_id: str, request: Request, db: DatabaseDep, username: CurrentUser):
+    result = await db.agno_sessions.delete_one({"session_id": session_id})
+    if result.deleted_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found.",
+        )
+    return {"message": "Session deleted."}
+
+@router.delete("/sessions")
+@limiter.limit("10/minute")
+async def clear_sessions(request: Request, db: DatabaseDep, username: CurrentUser):
+    result = await db.agno_sessions.delete_many({})
+    return {"message": f"Deleted {result.deleted_count} sessions."}
+
 @router.post("/docs/upload", response_model=UploadResponse, status_code=status.HTTP_201_CREATED)
 @limiter.limit(settings.RATE_LIMIT_DOCS_UPLOAD)
 async def upload_doc(
     request: Request,
+    username: CurrentUser,
     file: UploadFile = File(...),
-    token: str = Depends(oauth2_scheme)
 ) -> UploadResponse:
-    user = verify_access_token(token)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-        )
-    username = user.get("sub")
-    if not username:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not retrieve username from token.",
-        )
-        
     try:
         content = await file.read()
         saved_name = save_upload(username, file.filename, content)
@@ -384,21 +352,8 @@ async def upload_doc(
 @limiter.limit(settings.RATE_LIMIT_DOCS_LIST)
 def list_docs(
     request: Request,
-    token: str = Depends(oauth2_scheme)
+    username: CurrentUser,
 ) -> DocsListResponse:
-    user = verify_access_token(token)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-        )
-    username = user.get("sub")
-    if not username:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not retrieve username from token.",
-        )
-        
     try:
         uploads = list_uploads(username)
         return DocsListResponse(
@@ -415,21 +370,8 @@ def list_docs(
 def delete_doc(
     filename: str,
     request: Request,
-    token: str = Depends(oauth2_scheme)
+    username: CurrentUser,
 ):
-    user = verify_access_token(token)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-        )
-    username = user.get("sub")
-    if not username:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not retrieve username from token.",
-        )
-        
     try:
         delete_upload(username, filename)
         return {"message": f"File '{filename}' deleted successfully."}

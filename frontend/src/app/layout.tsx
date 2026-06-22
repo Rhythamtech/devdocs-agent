@@ -10,6 +10,12 @@ const outfit = Outfit({
   weight: ["300", "400", "500", "600", "700"],
 })
 
+const outfitHeading = Outfit({
+  variable: "--font-heading",
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+})
+
 const ibmPlexMono = IBM_Plex_Mono({
   variable: "--font-mono",
   subsets: ["latin"],
@@ -29,7 +35,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${outfit.variable} ${ibmPlexMono.variable} h-full antialiased`}
+      className={`${outfit.variable} ${outfitHeading.variable} ${ibmPlexMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">

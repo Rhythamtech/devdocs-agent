@@ -10,7 +10,6 @@ dependencies = [
     "ddgs>=9.14.4",
     "fastapi[standard]>=0.136.3",
     "keymesh",
-    "langfuse>=4.7.1",
     "openai>=2.38.0",
     "pwdlib[argon2]>=0.3.0",
     "pyjwt>=2.13.0",
@@ -18,7 +17,6 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "python-multipart>=0.0.29",
     "slowapi>=0.1.9",
-    "sqlalchemy>=2.0.50",
 ]
 
 [tool.uv.sources]

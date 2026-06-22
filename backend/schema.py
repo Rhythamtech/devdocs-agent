@@ -1,11 +1,11 @@
 from pydantic import BaseModel
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 
 class ToolResponse(BaseModel):
     content: str
     name: str
-    args: Dict[str, Any]
+    args: dict[str, Any]
 
 
 class AgentResponse(BaseModel):
@@ -40,4 +40,12 @@ class DocsListResponse(BaseModel):
 class UploadResponse(BaseModel):
     filename: str
     message: str
+
+class SessionInfo(BaseModel):
+    session_id: str
+    title: str
+    created_at: str
+
+class SessionsListResponse(BaseModel):
+    sessions: list[SessionInfo]
 

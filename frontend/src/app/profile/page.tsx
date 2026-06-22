@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator"
 import { User, Mail, LogOut } from "lucide-react"
 
-function ProfilePage() {
+export default function ProfilePage() {
   const { user, logout } = useAuth()
 
   return (
@@ -47,6 +47,4 @@ function ProfilePage() {
   )
 }
 
-export default function Page() {
-  return <ProfilePage />
-}
+

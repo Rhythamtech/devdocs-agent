@@ -5,11 +5,9 @@ import { cn } from "@/lib/utils"
 function Card({
   className,
   size = "default",
-  variant = "default",
   ...props
 }: React.ComponentProps<"div"> & {
   size?: "default" | "sm"
-  variant?: "default" | "gradient"
 }) {
   return (
     <div
