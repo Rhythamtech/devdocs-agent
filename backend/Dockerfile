@@ -3,16 +3,14 @@ FROM python:3.12-slim AS backend
 
 WORKDIR /app
 
-# Install uv
-RUN pip install --no-cache-dir uv
+RUN pip install --no-cache-dir uv && \
+    rm -rf /root/.cache/pip
 
-# Copy dependency manifest first for layer caching
 COPY backend/pyproject.toml backend/uv.lock ./
 
-# Install dependencies into the system Python (no venv needed inside Docker)
-RUN uv sync
+RUN uv sync --no-dev --system && \
+    rm -rf /root/.cache/uv
 
-# Copy the rest of the source
 COPY backend/ ./
 
 EXPOSE 8000
