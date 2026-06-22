@@ -10,7 +10,7 @@ RUN pip install --no-cache-dir uv
 COPY backend/pyproject.toml backend/uv.lock ./
 
 # Install dependencies into the system Python (no venv needed inside Docker)
-RUN uv sync --no-dev --system
+RUN uv sync
 
 # Copy the rest of the source
 COPY backend/ ./
