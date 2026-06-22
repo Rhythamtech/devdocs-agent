@@ -1,0 +1,15 @@
+# Ignored directories
+**/.venv
+**/node_modules
+**/.next
+**/__pycache__
+**/.DS_Store
+
+# Version control and config files
+.git
+.gitignore
+.dockerignore
+.env
+.env.local
+.env.development
+.env.production
