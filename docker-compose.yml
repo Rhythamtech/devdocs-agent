@@ -9,11 +9,14 @@ services:
     env_file:
       - .env
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_API_URL=http://0.0.0.0:8000
       - NEXT_PUBLIC_MOCK_MODE=false
+    extra_hosts:
+      - "storage-mongodb-bugx36-de46ce-88-214-23-153.sslip.io:88.214.23.153"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://0.0.0.0:8000/health"]
       interval: 15s
       timeout: 5s
       retries: 5
       start_period: 15s
+

@@ -50,6 +50,11 @@ load_dotenv()
 
 class DocumentationAgent:
     def __init__(self) -> None:
+        # Prevent AgentOps from logging to file and set log level to suppress console spam
+        if "AGENTOPS_LOGGING_TO_FILE" not in os.environ:
+            os.environ["AGENTOPS_LOGGING_TO_FILE"] = "FALSE"
+        if "AGENTOPS_LOG_LEVEL" not in os.environ:
+            os.environ["AGENTOPS_LOG_LEVEL"] = "WARNING"
         agentops.init()
 
         openai_client = self._build_openai_client()
