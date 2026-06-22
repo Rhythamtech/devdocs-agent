@@ -2,10 +2,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 from pathlib import Path
 
-ROOT_DIR = Path(__file__).resolve().parents[2]
+def _find_root() -> Path:
+    current = Path(__file__).resolve().parent
+    for parent in [current] + list(current.parents):
+        if (parent / ".env").exists():
+            return parent
+    return current.parents[2]
 
+ROOT_DIR = _find_root()
 
-print(f"Loading settings from {ROOT_DIR / '.env'}")
 
 class Settings(BaseSettings):
     OPENAI_BASE_URL: str 
