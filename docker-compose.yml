@@ -36,5 +36,4 @@ services:
         condition: service_healthy
 
 volumes:
-  mongo_data:
   uploads_data:
