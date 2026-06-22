@@ -3,12 +3,12 @@ FROM python:3.12-slim AS backend
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir uv && \
+RUN pip install --no-cache-dir uv --root-user-action=ignore && \
     rm -rf /root/.cache/pip
 
 COPY backend/pyproject.toml backend/uv.lock ./
 
-RUN uv sync --no-dev --system && \
+RUN UV_SYSTEM_PYTHON=1 uv sync --no-dev && \
     rm -rf /root/.cache/uv
 
 COPY backend/ ./
