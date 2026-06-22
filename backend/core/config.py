@@ -1,6 +1,9 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import model_validator
 from functools import lru_cache
 from pathlib import Path
+import re
+import urllib.parse
 
 def _find_root() -> Path:
     current = Path(__file__).resolve().parent
@@ -41,6 +44,22 @@ class Settings(BaseSettings):
     RATE_LIMIT_DOCS_LIST: str = "30/minute"
     RATE_LIMIT_DOCS_DELETE: str = "10/minute"
     
+    @model_validator(mode="after")
+    def resolve_sslip_io_urls(self) -> "Settings":
+        if "sslip.io" in self.MONGO_DB_URL:
+            try:
+                parsed = urllib.parse.urlparse(self.MONGO_DB_URL)
+                hostname = parsed.hostname
+                if hostname and "sslip.io" in hostname:
+                    match = re.search(r"(\d+)-(\d+)-(\d+)-(\d+)\.sslip\.io$", hostname)
+                    if match:
+                        ip = f"{match.group(1)}.{match.group(2)}.{match.group(3)}.{match.group(4)}"
+                        new_netloc = parsed.netloc.replace(hostname, ip)
+                        self.MONGO_DB_URL = parsed._replace(netloc=new_netloc).geturl()
+            except Exception:
+                pass
+        return self
+
     model_config = SettingsConfigDict(
         env_file=ROOT_DIR / ".env",
         env_file_encoding="utf-8",
