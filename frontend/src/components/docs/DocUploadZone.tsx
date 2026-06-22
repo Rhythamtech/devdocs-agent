@@ -45,7 +45,7 @@ export default function DocUploadZone({
       const formData = new FormData()
       formData.append("file", file)
 
-      const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? ""
       const xhr = new XMLHttpRequest()
       xhr.open("POST", `${API_BASE}/docs/upload`, true)
 
