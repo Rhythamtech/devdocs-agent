@@ -6,6 +6,24 @@ An AI-powered documentation assistant that lets developers upload markdown and t
 
 ---
 
+## Screenshots
+
+### 🏠 Landing Page
+![Landing Page](home.png)
+
+### 🔐 Authentication
+| Login | Sign Up |
+| :---: | :---: |
+| ![Login Page](login.png) | ![Signup Page](signup.png) |
+
+### 📁 Document Management
+![Document Management Page](mydocs.png)
+
+### 💬 Chat Interface (with Tool Execution Transparency)
+![Chat Page](chat.png)
+
+---
+
 ## Why This Exists
 
 Engineering teams accumulate critical knowledge in scattered markdown files — design docs, ADRs, onboarding guides, API references. Searching these manually is slow. Feeding them into a generic chatbot loses source attribution. RAG pipelines with vector databases work but introduce embedding costs, index maintenance, and infrastructure complexity that's overkill for most team documentation.

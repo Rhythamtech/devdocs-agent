@@ -8,7 +8,8 @@ const nextConfig: NextConfig = {
       { source: "/ask/:path*", destination: "http://backend:8000/ask/:path*" },
       { source: "/chats/:path*", destination: "http://backend:8000/chats/:path*" },
       { source: "/sessions/:path*", destination: "http://backend:8000/sessions/:path*" },
-      { source: "/docs/:path*", destination: "http://backend:8000/docs/:path*" },
+      { source: "/api/docs", destination: "http://backend:8000/docs" },
+      { source: "/api/docs/:path*", destination: "http://backend:8000/docs/:path*" },
     ]
   },
 };

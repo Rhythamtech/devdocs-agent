@@ -193,7 +193,7 @@ export interface DocInfo {
 }
 
 export async function listDocuments(token: string | null): Promise<DocInfo[]> {
-  const res = await apiRequest<{ docs: DocInfo[] }>("/docs", {
+  const res = await apiRequest<{ docs: DocInfo[] }>("/api/docs", {
     method: "GET",
     token,
   })
@@ -210,7 +210,7 @@ export async function uploadDocument(
   const headers: Record<string, string> = {}
   if (token) headers["Authorization"] = `Bearer ${token}`
 
-  const res = await fetch(`${API_BASE}/docs/upload`, {
+  const res = await fetch("/api/docs/upload", {
     method: "POST",
     headers,
     body: formData,
@@ -225,7 +225,7 @@ export async function uploadDocument(
 }
 
 export async function deleteDocument(filename: string, token: string | null): Promise<void> {
-  await apiRequest<void>(`/docs/${encodeURIComponent(filename)}`, {
+  await apiRequest<void>(`/api/docs/${encodeURIComponent(filename)}`, {
     method: "DELETE",
     token,
   })

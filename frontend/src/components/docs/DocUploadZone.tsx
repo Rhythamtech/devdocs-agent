@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useCallback, useState } from "react"
+import React, { useCallback, useRef, useState } from "react"
 import { motion } from "motion/react"
 import { UploadCloud, AlertCircle } from "lucide-react"
 
@@ -38,58 +38,63 @@ export default function DocUploadZone({
   const [isDragActive, setIsDragActive] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const uploadFile = useCallback(
-    (file: File) => {
-      onUploadStart(file.name, file.size)
+  const onStartRef = useRef(onUploadStart)
+  const onProgressRef = useRef(onUploadProgress)
+  const onSuccessRef = useRef(onUploadSuccess)
+  const onErrorRef = useRef(onUploadError)
+  const onEndRef = useRef(onUploadEnd)
+  onStartRef.current = onUploadStart
+  onProgressRef.current = onUploadProgress
+  onSuccessRef.current = onUploadSuccess
+  onErrorRef.current = onUploadError
+  onEndRef.current = onUploadEnd
 
-      const formData = new FormData()
-      formData.append("file", file)
+  const tokenRef = useRef(token)
+  tokenRef.current = token
 
-      const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? ""
-      const xhr = new XMLHttpRequest()
-      xhr.open("POST", `${API_BASE}/docs/upload`, true)
+  const uploadFile = useCallback((file: File) => {
+    onStartRef.current(file.name, file.size)
 
-      if (token) {
-        xhr.setRequestHeader("Authorization", `Bearer ${token}`)
+    const formData = new FormData()
+    formData.append("file", file)
+
+    const xhr = new XMLHttpRequest()
+    xhr.open("POST", "/api/docs/upload", true)
+
+    if (tokenRef.current) {
+      xhr.setRequestHeader("Authorization", `Bearer ${tokenRef.current}`)
+    }
+
+    xhr.upload.addEventListener("progress", (event) => {
+      if (event.lengthComputable) {
+        const pct = Math.round((event.loaded / event.total) * 100)
+        onProgressRef.current?.(file.name, pct)
       }
+    })
 
-      xhr.upload.addEventListener("progress", (event) => {
-        if (event.lengthComputable) {
-          const pct = Math.round((event.loaded / event.total) * 100)
-          onUploadProgress?.(file.name, pct)
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onSuccessRef.current(file.name)
+      } else {
+        let errorMsg = "Upload failed"
+        try {
+          const err = JSON.parse(xhr.responseText)
+          errorMsg = err.error?.message || err.detail || errorMsg
+        } catch {
+          // Keep default
         }
-      })
-
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const data = JSON.parse(xhr.responseText)
-            onUploadSuccess(data.filename || file.name)
-          } catch {
-            onUploadSuccess(file.name)
-          }
-        } else {
-          let errorMsg = "Upload failed"
-          try {
-            const err = JSON.parse(xhr.responseText)
-            errorMsg = err.error?.message || err.detail || errorMsg
-          } catch {
-            // Keep default
-          }
-          onUploadError?.(file.name, errorMsg)
-        }
-        onUploadEnd(file.name)
+        onErrorRef.current?.(file.name, errorMsg)
       }
+      onEndRef.current(file.name)
+    }
 
-      xhr.onerror = () => {
-        onUploadError?.(file.name, "An unexpected error occurred during upload.")
-        onUploadEnd(file.name)
-      }
+    xhr.onerror = () => {
+      onErrorRef.current?.(file.name, "An unexpected error occurred during upload.")
+      onEndRef.current(file.name)
+    }
 
-      xhr.send(formData)
-    },
-    [token, onUploadStart, onUploadProgress, onUploadSuccess, onUploadError, onUploadEnd]
-  )
+    xhr.send(formData)
+  }, [])
 
   const processFiles = useCallback(
     (files: FileList | File[]) => {
