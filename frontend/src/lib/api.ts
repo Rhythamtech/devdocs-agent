@@ -13,10 +13,14 @@ export interface UserProfile {
   email: string
 }
 
-// Shape returned by GET /chats?session_id=<id>
 export interface ChatMessage {
   role: "user" | "assistant"
   content: string
+  toolCalls?: {
+    name: string
+    args: string
+    timestamp: number
+  }[]
 }
 
 function getToken(): string | null {
@@ -76,12 +80,52 @@ export async function fetchChatHistory(
   // We normalise to our ChatMessage shape, skipping tool/system messages.
   if (!Array.isArray(raw)) return []
 
-  return raw
-    .filter((m: Record<string, unknown>) => m.role === "user" || m.role === "assistant")
-    .map((m: Record<string, unknown>) => ({
-      role: m.role as "user" | "assistant",
-      content: typeof m.content === "string" ? m.content : JSON.stringify(m.content ?? ""),
+  const merged: ChatMessage[] = []
+  for (const m of raw) {
+    if (m.role !== "user" && m.role !== "assistant") {
+      continue
+    }
+
+    const rawToolCalls = (m.tool_calls || []) as {
+      function?: { name?: string; arguments?: string }
+    }[]
+    const toolCalls = rawToolCalls.map((tc) => ({
+      name: tc.function?.name || "",
+      args: tc.function?.arguments || "",
+      timestamp: m.created_at ? (m.created_at as number) * 1000 : Date.now(),
     }))
+
+    let content = ""
+    if (m.content !== undefined && m.content !== null) {
+      content = typeof m.content === "string" ? m.content : JSON.stringify(m.content)
+    }
+
+    if (m.role === "user") {
+      merged.push({
+        role: "user",
+        content,
+        toolCalls: [],
+      })
+    } else if (m.role === "assistant") {
+      const last = merged[merged.length - 1]
+      if (last && last.role === "assistant") {
+        if (content) {
+          last.content = last.content ? last.content + "\n" + content : content
+        }
+        if (toolCalls.length > 0) {
+          last.toolCalls = [...(last.toolCalls || []), ...toolCalls]
+        }
+      } else {
+        merged.push({
+          role: "assistant",
+          content,
+          toolCalls,
+        })
+      }
+    }
+  }
+
+  return merged
 }
 
 export function createSSEConnection(

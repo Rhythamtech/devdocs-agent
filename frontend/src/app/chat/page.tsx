@@ -118,7 +118,7 @@ export default function ChatPage() {
           id: generateId(),
           role: m.role,
           content: m.content,
-          toolCalls: [],
+          toolCalls: m.toolCalls || [],
         }))
         setMessages(mapped)
       } catch {
