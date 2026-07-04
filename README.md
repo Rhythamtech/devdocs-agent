@@ -216,7 +216,6 @@ devdocs-agent/
 │   └── package.json
 ├── docker-compose.yml           # 3-service deployment
 ├── start.sh                     # Local dev launcher
-└── .env                         # Environment config
 ```
 
 ---
