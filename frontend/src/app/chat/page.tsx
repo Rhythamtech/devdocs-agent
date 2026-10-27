@@ -10,11 +10,14 @@ import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { useAuth } from "@/contexts/AuthContext"
-import { createSSEConnection, fetchChatHistory, retryChatMessage } from "@/lib/api"
-import { Send, Bot, Menu, ArrowRight, RotateCcw, ArrowDown } from "lucide-react"
+import { createSSEConnection, fetchChatHistory, retryChatMessage, saveVoiceTranscript } from "@/lib/api"
+import { Send, Bot, Menu, ArrowRight, RotateCcw, ArrowDown, Mic } from "lucide-react"
 import { useChatHistory } from "@/hooks/useChatHistory"
+import { useVoiceSession, type VoiceTranscript } from "@/hooks/useVoiceSession"
+import { VoiceMicButton, VoiceStatusStrip } from "@/components/chat/VoiceControl"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import { toast } from "sonner"
 
 interface ToolCall {
   name: string
@@ -27,6 +30,9 @@ interface Message {
   role: "user" | "assistant"
   content: string
   toolCalls: ToolCall[]
+  /** Voice transcripts are persisted only after the segment is final. */
+  source?: "text" | "voice"
+  voiceFinal?: boolean
 }
 
 function generateId() {
@@ -54,6 +60,7 @@ export default function ChatPage() {
   const [streaming, setStreaming] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
+  const sessionIdRef = useRef<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
   const scrollViewportRef = useRef<HTMLDivElement | null>(null)
@@ -62,6 +69,63 @@ export default function ChatPage() {
   const abortRef = useRef<AbortController | null>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const prefersReduced = useReducedMotion()
+
+  /** Show live voice segments and persist each finalized user/assistant turn. */
+  const handleVoiceTranscript = useCallback(async (transcript: VoiceTranscript) => {
+    let sessionId = sessionIdRef.current
+    if (!sessionId) {
+      sessionId = generateSessionId()
+      sessionIdRef.current = sessionId
+      setCurrentSessionId(sessionId)
+      addSession(sessionId, transcript.role === "user" ? transcript.text : "Voice conversation")
+    }
+
+    setMessages((prev) => {
+      const index = prev.findIndex((m) => m.id === transcript.id)
+      if (index === -1) {
+        return [
+          ...prev,
+          {
+            id: transcript.id,
+            role: transcript.role,
+            content: transcript.text,
+            toolCalls: [],
+            source: "voice" as const,
+            voiceFinal: transcript.final,
+          },
+        ]
+      }
+
+      const existing = prev[index]
+      // A late interim update must not overwrite the final transcript.
+      if (existing.voiceFinal && !transcript.final) return prev
+      if (!transcript.final && transcript.text.length < existing.content.length) {
+        return prev
+      }
+
+      const next = [...prev]
+      next[index] = {
+        ...existing,
+        content: transcript.text,
+        voiceFinal: transcript.final,
+      }
+      return next
+    })
+    if (transcript.final && transcript.text.trim()) {
+      try {
+        await saveVoiceTranscript(
+          sessionId,
+          { id: transcript.id, role: transcript.role, content: transcript.text.trim() },
+          token,
+        )
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Could not save voice transcript.")
+      }
+    }
+  }, [addSession, token])
+
+  const voice = useVoiceSession({ token, onTranscript: handleVoiceTranscript })
+  const voiceBusy = voice.active || voice.status === "connecting"
 
   // Set up viewport ref and scroll event listener on mount
   useEffect(() => {
@@ -107,6 +171,8 @@ export default function ChatPage() {
   /** Load history from the backend when a session is selected from the sidebar */
   const loadSession = useCallback(
     async (sessionId: string) => {
+      void voice.stop()
+      sessionIdRef.current = sessionId
       setCurrentSessionId(sessionId)
       setMessages([])
       setLoadingHistory(true)
@@ -119,6 +185,7 @@ export default function ChatPage() {
           role: m.role,
           content: m.content,
           toolCalls: m.toolCalls || [],
+          source: m.source,
         }))
         setMessages(mapped)
       } catch {
@@ -128,12 +195,12 @@ export default function ChatPage() {
         setLoadingHistory(false)
       }
     },
-    [token],
+    [token, voice.stop],
   )
 
   const sendMessage = useCallback(async () => {
     const prompt = input.trim()
-    if (!prompt || streaming) return
+    if (!prompt || streaming || voiceBusy) return
 
     setInput("")
     setStreaming(true)
@@ -142,6 +209,7 @@ export default function ChatPage() {
     let sessionId = currentSessionId
     if (!sessionId) {
       sessionId = generateSessionId()
+      sessionIdRef.current = sessionId
       setCurrentSessionId(sessionId)
       // Register in sidebar immediately with the first user message as title
       addSession(sessionId, prompt)
@@ -220,10 +288,10 @@ export default function ChatPage() {
     )
 
     abortRef.current = controller
-  }, [input, streaming, token, currentSessionId, addSession, refreshSessions])
+  }, [input, streaming, token, currentSessionId, addSession, refreshSessions, voiceBusy])
 
   const handleRetry = useCallback(async () => {
-    if (!currentSessionId || streaming) return
+    if (!currentSessionId || streaming || voiceBusy) return
 
     setStreaming(true)
 
@@ -322,18 +390,30 @@ export default function ChatPage() {
       })
       setStreaming(false)
     }
-  }, [currentSessionId, streaming, token, refreshSessions])
+  }, [currentSessionId, streaming, token, refreshSessions, voiceBusy])
 
 
   const handleNewChat = useCallback(() => {
     // Abort any in-progress stream
     abortRef.current?.abort()
+    void voice.stop()
     setMessages([])
+    sessionIdRef.current = null
     setCurrentSessionId(null)
     setInput("")
     setSidebarOpen(false)
     inputRef.current?.focus()
-  }, [])
+  }, [voice.stop])
+
+  const handleVoiceToggle = useCallback(() => {
+    if (!sessionIdRef.current) {
+      const sessionId = generateSessionId()
+      sessionIdRef.current = sessionId
+      setCurrentSessionId(sessionId)
+      addSession(sessionId, "Voice conversation")
+    }
+    voice.toggle()
+  }, [addSession, voice.toggle])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -448,8 +528,14 @@ export default function ChatPage() {
                           <Bot className="size-4 text-primary" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="mb-1 text-xs font-medium text-muted-foreground/70">
+                          <p className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground/70">
                             DevDocs
+                            {msg.source === "voice" && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                                <Mic className="size-2.5" />
+                                Voice
+                              </span>
+                            )}
                           </p>
                           {msg.content ? (
                             <div className="text-[15px] leading-relaxed text-card-foreground prose-p:my-2 prose-pre:my-3 prose-headings:text-foreground prose-a:text-primary prose-strong:text-foreground prose-code:rounded-md prose-code:bg-secondary prose-code:px-1.5 prose-code:py-0.5 prose-code:text-primary prose-code:before:content-none prose-code:after:content-none prose-pre:border prose-pre:border-border prose-pre:bg-muted prose-pre:p-4 prose-ol:my-2 prose-ul:my-2 prose-li:my-1">
@@ -471,7 +557,7 @@ export default function ChatPage() {
                               </div>
                             )
                           )}
-                          {msg.role === "assistant" && msg.id === messages[messages.length - 1]?.id && !streaming && (
+                          {msg.role === "assistant" && msg.source !== "voice" && !voiceBusy && msg.id === messages[messages.length - 1]?.id && !streaming && (
                             <div className="mt-2 flex items-center gap-2">
                               <Button
                                 variant="ghost"
@@ -533,35 +619,55 @@ export default function ChatPage() {
           </AnimatePresence>
 
           <div className="border-t border-border bg-background px-6 pb-4 pt-3">
-            <div className="mx-auto flex max-w-3xl items-end gap-3">
-              <Textarea
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Ask a question..."
-                className="min-h-11 resize-none rounded-xl border-border bg-card text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/15"
-                rows={1}
-                disabled={streaming}
+            <div className="mx-auto flex max-w-3xl flex-col gap-2">
+              <VoiceStatusStrip
+                active={voiceBusy}
+                status={voice.status}
+                error={voice.error}
+                audioBlocked={voice.audioBlocked}
+                onStop={() => void voice.stop()}
+                onDismiss={voice.clearError}
+                onResumeAudio={() => void voice.resumeAudio()}
               />
-              <Button
-                onClick={sendMessage}
-                disabled={!input.trim() || streaming}
-                variant="primary"
-                size="icon"
-                className="mb-0.5 rounded-xl"
-              >
-                <Send className="size-4" />
-              </Button>
+              <div className="flex items-end gap-3">
+                <VoiceMicButton
+                  active={voiceBusy}
+                  disabled={streaming || loadingHistory}
+                  onClick={handleVoiceToggle}
+                />
+                <Textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={
+                    voiceBusy
+                      ? "Voice mode is on — speak your question"
+                      : "Ask a question..."
+                  }
+                  className="min-h-11 resize-none rounded-xl border-border bg-card text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/15"
+                  rows={1}
+                  disabled={streaming || voiceBusy}
+                />
+                <Button
+                  onClick={sendMessage}
+                  disabled={!input.trim() || streaming || voiceBusy}
+                  variant="primary"
+                  size="icon"
+                  className="mb-0.5 rounded-xl"
+                >
+                  <Send className="size-4" />
+                </Button>
+              </div>
+              <p className="mt-1 text-center text-xs text-muted-foreground/70">
+                {voiceBusy
+                  ? "Voice transcripts are saved to this conversation"
+                  : "Every answer includes source references from your documentation"}
+              </p>
             </div>
-            <p className="mt-2 text-center text-xs text-muted-foreground/70">
-              Every answer includes source references from your documentation
-            </p>
           </div>
         </div>
       </div>
     </ProtectedRoute>
   )
 }
-
-

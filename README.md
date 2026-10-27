@@ -22,6 +22,11 @@ An AI-powered documentation assistant that lets developers upload markdown and t
 ### 💬 Chat Interface (with Tool Execution Transparency)
 ![Chat Page](chat.png)
 
+### 🎙️ Voice Mode (Real-Time Spoken Interaction)
+| Voice Mode in Chat | Voice Mode in Action |
+| :---: | :---: |
+| ![Voice Mode in Chat](voice-mode-in-chat.png) | ![Voice Mode in Action](voice-mode-in-action.png) |
+
 ---
 
 ## Why This Exists
@@ -42,6 +47,7 @@ DevDocs Agent takes a different approach: **grep-first retrieval**. The agent di
 | **Session summary compression** | After every 4 conversation turns, a smaller model (Llama 4 Scout) generates a summary, compressing chat history by ~36% and reducing token costs for long sessions. |
 | **Degraded mode** | If the agent fails to initialize (missing keys, network issues), auth and document endpoints still serve. Health endpoint reports `degraded` status. |
 | **SSE streaming with tool-call visibility** | Real-time streaming shows tool calls (`grep`, `read_doc`) as collapsible cards in the UI — users see exactly how the agent found its answer. |
+| **Voice mode** | Talk to your docs in the browser. LiveKit handles the room and turn-taking, Deepgram Flux transcribes, and Deepgram Aura-2 speaks the cited answer — with live transcripts inline in the chat. |
 | **Retry mechanism** | `/chats/retry` pops the last run and re-submits the original prompt. Clean UX without client-side duplication. |
 
 ---
@@ -64,7 +70,7 @@ DevDocs Agent takes a different approach: **grep-first retrieval**. The agent di
        │              │                  │
        ▼              ▼                  ▼
 ┌────────────┐ ┌─────────────┐ ┌──────────────────────┐
-│  MongoDB 7 │ │  Agno Agent │ │    Filesystem        │
+│ PostgreSQL │ │  Agno Agent │ │    Filesystem        │
 │  users,    │ │  (LLM +     │ │  docs/uploads/       │
 │  sessions, │ │   tools)    │ │  <username>/         │
 │  history   │ │             │ │                      │
@@ -84,7 +90,7 @@ The agent has 4 tools that operate on the user's filesystem:
 
 | Tool | Purpose |
 |---|---|
-| `list_all_docs(pattern)` | Discover available `.md` / `.txt` files |
+| `list_all_docs(pattern)` | Discover available `.md` / `.markdown` / `.txt` files |
 | `grep(pattern, max_results)` | Regex search across all docs, returns matching lines with file + line numbers |
 | `read_doc(path)` | Read an entire document |
 | `read_slice_doc(path, start, end)` | Read a specific line range — targeted context without loading the whole file |
@@ -101,12 +107,13 @@ The agent has 4 tools that operate on the user's filesystem:
 | Backend | FastAPI, Python 3.12+, uv |
 | Agent Framework | Agno v2.6.9+ |
 | LLM | qwen3-32b via Groq (swappable via env var) |
-| Database | MongoDB 7 (pymongo async) |
+| Database | PostgreSQL 16 (psycopg 3 async pool + Agno `PostgresDb`) |
 | Auth | JWT (PyJWT) + Argon2id (pwdlib) |
 | Rate Limiting | Slowapi (in-memory, per-user) |
 | API Key Mgmt | Keymesh (round-robin) |
 | Observability | AgentOps |
-| Deployment | Docker Compose (3 services) |
+| Voice | LiveKit Agents (orchestration) + Deepgram Flux (STT) + Deepgram Aura-2 (TTS) |
+| Deployment | Docker Compose (4 services) |
 
 ---
 
@@ -130,7 +137,7 @@ docker compose up --build
 ### Local Development
 
 ```bash
-# Prerequisites: Python 3.12+, Node.js, uv, MongoDB running locally
+# Prerequisites: Python 3.12+, Node.js, uv, PostgreSQL 16 running locally
 
 # 1. Configure environment
 cp .env.example .env   # edit with your API keys
@@ -141,6 +148,21 @@ cp .env.example .env   # edit with your API keys
 cd backend && uv sync && uv run dev   # :8000
 cd frontend && npm install && npm run dev  # :3000
 ```
+
+### Voice Mode
+
+Voice is optional. Add `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, and
+`DEEPGRAM_API_KEY` to `.env`, then run the worker as its own process:
+
+```bash
+cd backend
+uv run python -m voice.agent dev   # LiveKit worker (connects out to LiveKit Cloud)
+```
+
+`./start.sh` starts the worker automatically when those four variables are set.
+The Docker `voice-agent` service does the same and exits cleanly when they are
+missing. The mic button reports voice as unavailable (503 from `/voice/token`)
+when voice is not configured. Voice transcripts appear inline but are not saved.
 
 ### Frontend Mock Mode
 
@@ -163,12 +185,24 @@ Mock credentials: `admin` / `admin`
 | `OPENAI_BASE_URL` | LLM API base URL | `https://api.groq.com/openai/v1` |
 | `OPENAI_MODEL` | Model identifier | `qwen/qwen3-32b` |
 | `AGENTOPS_API_KEY` | AgentOps observability key | — |
-| `MONGO_DB_URL` | MongoDB connection string | `mongodb://localhost:27017` |
-| `MONGO_DATABASE_NAME` | Database name | `docs-agent-db` |
+| `POSTGRES_URL` | PostgreSQL connection string | `postgresql://devdocs:devdocs@localhost:5432/devdocs` |
+| `POSTGRES_USER` | Database user created by Docker Compose | `devdocs` |
+| `POSTGRES_PASSWORD` | Database password created by Docker Compose | `devdocs` |
+| `POSTGRES_DB` | Database name created by Docker Compose | `devdocs` |
+| `POSTGRES_PORT` | Loopback host port for the Compose Postgres service | `5432` |
 | `JWT_SECRET` | Secret for JWT signing | — |
 | `JWT_EXPIRE_IN_MINUTES` | Token lifetime | `15` |
 | `ALLOW_ORIGINS` | CORS origins (comma-separated) | `http://localhost:3000` |
 | `NEXT_PUBLIC_API_URL` | Backend URL (frontend) | `http://localhost:8000` |
+| `LIVEKIT_URL` | LiveKit Cloud WebSocket URL (`wss://…`) | — (voice disabled) |
+| `LIVEKIT_API_KEY` | LiveKit Cloud API key | — (voice disabled) |
+| `LIVEKIT_API_SECRET` | LiveKit Cloud API secret | — (voice disabled) |
+| `DEEPGRAM_API_KEY` | Deepgram key used for both STT and TTS | — (voice disabled) |
+| `VOICE_AGENT_NAME` | LiveKit dispatch name for the worker | `devdocs-voice` |
+| `VOICE_LLM_MODEL` | LiveKit Inference model for spoken answers | `google/gemma-4-31b-it` |
+| `VOICE_STT_MODEL` | Deepgram STT model | `flux-general-en` |
+| `VOICE_TTS_MODEL` | Deepgram TTS voice | `aura-2-thalia-en` |
+| `VOICE_KEYTERMS` | Comma-separated words to boost in transcription | `DevDocs,Agno,FastAPI,PostgreSQL,LiveKit,Deepgram` |
 
 ---
 
@@ -195,9 +229,15 @@ Mock credentials: `admin` / `admin`
 
 | Method | Endpoint | Rate Limit | Description |
 |---|---|---|---|
-| `POST` | `/docs/upload` | 5/min | Upload `.md` / `.txt` (max 2MB) |
+| `POST` | `/docs/upload` | 5/min | Upload `.md` / `.markdown` / `.txt` (max 2MB) |
 | `GET` | `/docs` | 30/min | List user documents |
 | `DELETE` | `/docs/{filename}` | 10/min | Delete a document |
+
+### Voice
+
+| Method | Endpoint | Rate Limit | Description |
+|---|---|---|---|
+| `POST` | `/voice/token` | 10/min | Mint a short-lived LiveKit token and dispatch the voice agent into a new room |
 
 ### System
 
@@ -220,6 +260,7 @@ devdocs-agent/
 │   ├── schema.py                # Pydantic models
 │   ├── core/
 │   │   ├── config.py            # Pydantic settings (env vars)
+│   │   ├── database.py          # Async psycopg pool + schema DDL
 │   │   ├── state.py             # Global AppState (agent, db, limiter)
 │   │   └── logger.py            # Logging setup
 │   ├── utils/
@@ -227,6 +268,8 @@ devdocs-agent/
 │   │   ├── auth.py              # JWT + Argon2id auth
 │   │   └── file_handler.py      # Upload/save/delete/list files
 │   ├── docs/uploads/            # User-uploaded documents
+│   ├── voice/
+│   │   └── agent.py             # LiveKit worker (Deepgram STT/TTS + doc tools)
 │   └── pyproject.toml
 ├── frontend/
 │   ├── src/
@@ -239,10 +282,10 @@ devdocs-agent/
 │   │   │   └── page.tsx         # Landing page
 │   │   ├── components/          # UI components (chat, docs, layout, ui)
 │   │   ├── contexts/            # AuthContext
-│   │   ├── hooks/               # useChatHistory
+│   │   ├── hooks/               # useChatHistory, useVoiceSession
 │   │   └── lib/api.ts           # API client + SSE parser
 │   └── package.json
-├── docker-compose.yml           # 3-service deployment
+├── docker-compose.yml           # 4-service deployment
 ├── start.sh                     # Local dev launcher
 └── .env                         # Environment config
 ```
@@ -257,8 +300,8 @@ devdocs-agent/
 docker compose up --build -d
 ```
 
-- **MongoDB** data persisted via `mongo_data` volume
-- **Uploads** persisted via `uploads_data` volume
+- **PostgreSQL** data persisted via the `postgres_data` volume; tables are created automatically on backend startup
+- **Uploads** persisted via the `user_docs` volume
 - Backend health check: `GET /health`
 - Frontend builds with `NEXT_PUBLIC_API_URL` baked in
 

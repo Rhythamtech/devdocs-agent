@@ -147,7 +147,7 @@ export default function DocList({ documents, uploadingFiles = [], onDelete, sear
                 >
                   <td className="whitespace-nowrap px-6 py-4">
                     <div className="flex items-center gap-3">
-                      {doc.filename.toLowerCase().endsWith(".md") ? (
+                      {/\.(md|markdown)$/i.test(doc.filename) ? (
                         <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-orange-500/10 text-orange-500 font-extrabold text-[10px] tracking-tight font-mono border border-orange-500/20 select-none dark:bg-orange-500/15 dark:border-orange-500/25">
                           MD
                         </div>

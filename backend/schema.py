@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import Any, Optional
+from pydantic import BaseModel, Field
+from typing import Any, Literal, Optional
 
 
 class ToolResponse(BaseModel):
@@ -49,3 +49,14 @@ class SessionInfo(BaseModel):
 class SessionsListResponse(BaseModel):
     sessions: list[SessionInfo]
 
+class VoiceTokenResponse(BaseModel):
+    server_url: str
+    participant_token: str
+    room_name: str
+
+
+class VoiceTranscriptRequest(BaseModel):
+    session_id: str = Field(min_length=1, max_length=255)
+    message_id: str = Field(min_length=1, max_length=255)
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=10_000)

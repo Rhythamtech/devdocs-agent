@@ -1,11 +1,10 @@
 
 from typing import Optional
-from pymongo import AsyncMongoClient
-from pymongo.asynchronous.database import AsyncDatabase
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from fastapi import Request
 from agent import DocumentationAgent
+from core.database import Database
 from utils.auth import verify_access_token
 from core.config import settings
 
@@ -21,8 +20,7 @@ def get_rate_limit_key(request: Request) -> str:
 
 class AppState:
     agent: Optional[DocumentationAgent] = None
-    mongo_client: Optional[AsyncMongoClient] = None
-    db: Optional[AsyncDatabase] = None
+    db: Optional[Database] = None
     limiter: Limiter = Limiter(key_func=get_rate_limit_key, default_limits=[settings.RATE_LIMIT_GLOBAL])
     startup_errors: list[str] = []
 

@@ -3,6 +3,7 @@
 import React, { useCallback, useRef, useState } from "react"
 import { motion } from "motion/react"
 import { UploadCloud, AlertCircle } from "lucide-react"
+import { docsApiUrl } from "@/lib/api"
 
 interface DocUploadZoneProps {
   onUploadSuccess: (filename: string) => void
@@ -13,7 +14,7 @@ interface DocUploadZoneProps {
   token: string | null
 }
 
-const ALLOWED_EXTENSIONS = [".md", ".txt"]
+const ALLOWED_EXTENSIONS = [".md", ".markdown", ".txt"]
 const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2 MB
 
 function validateFile(file: File): string | null {
@@ -59,7 +60,7 @@ export default function DocUploadZone({
     formData.append("file", file)
 
     const xhr = new XMLHttpRequest()
-    xhr.open("POST", "/api/docs/upload", true)
+    xhr.open("POST", docsApiUrl("/docs/upload"), true)
 
     if (tokenRef.current) {
       xhr.setRequestHeader("Authorization", `Bearer ${tokenRef.current}`)
@@ -189,7 +190,7 @@ export default function DocUploadZone({
             Drag & drop your files here, or <span className="text-primary">browse</span>
           </p>
           <p className="mt-1 text-xs text-muted-foreground/70">
-            Markdown (.md) and text (.txt) files. Max 2 MB each. You can select multiple files.
+            Markdown (.md, .markdown) and text (.txt) files. Max 2 MB each. You can select multiple files.
           </p>
         </div>
       </motion.div>

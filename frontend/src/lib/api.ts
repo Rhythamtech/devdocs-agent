@@ -1,4 +1,16 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? ""
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/+$/, "")
+
+/**
+ * Resolve a docs endpoint for both deployment modes.
+ *
+ * Local dev talks to FastAPI directly through NEXT_PUBLIC_API_URL. Docker
+ * builds leave it empty and proxy requests through the Next.js `/api/docs`
+ * rewrite, so the browser never needs the internal `backend` hostname.
+ */
+export function docsApiUrl(path: string): string {
+  const normalized = path.startsWith("/") ? path : `/${path}`
+  return `${API_BASE}${API_BASE ? normalized : `/api${normalized}`}`
+}
 
 interface ApiOptions {
   method?: string
@@ -16,6 +28,7 @@ export interface UserProfile {
 export interface ChatMessage {
   role: "user" | "assistant"
   content: string
+  source?: "voice"
   toolCalls?: {
     name: string
     args: string
@@ -40,7 +53,12 @@ export async function apiRequest<T>(path: string, opts: ApiOptions = {}): Promis
     headers["Authorization"] = `Bearer ${token}`
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
+  const url =
+    path.startsWith("http://") || path.startsWith("https://")
+      ? path
+      : `${API_BASE}${path}`
+
+  const res = await fetch(url, {
     method: opts.method || "GET",
     headers,
     body: opts.body ? JSON.stringify(opts.body) : undefined,
@@ -56,7 +74,7 @@ export async function apiRequest<T>(path: string, opts: ApiOptions = {}): Promis
 
 /**
  * Fetches the message history for a given session from GET /chats?session_id=<id>.
- * The backend returns an array of message objects from the agent's MongoDB store.
+ * The backend returns an array of message objects from the agent's PostgreSQL store.
  */
 export async function fetchChatHistory(
   sessionId: string,
@@ -104,11 +122,13 @@ export async function fetchChatHistory(
       merged.push({
         role: "user",
         content,
+        ...(m.source === "voice" ? { source: "voice" as const } : {}),
         toolCalls: [],
       })
     } else if (m.role === "assistant") {
       const last = merged[merged.length - 1]
-      if (last && last.role === "assistant") {
+      const source = m.source === "voice" ? "voice" : undefined
+      if (last && last.role === "assistant" && last.source === source) {
         if (content) {
           last.content = last.content ? last.content + "\n" + content : content
         }
@@ -119,6 +139,7 @@ export async function fetchChatHistory(
         merged.push({
           role: "assistant",
           content,
+          ...(source ? { source } : {}),
           toolCalls,
         })
       }
@@ -230,6 +251,40 @@ export async function retryChatMessage(
   })
 }
 
+export interface VoiceToken {
+  server_url: string
+  participant_token: string
+  room_name: string
+}
+
+/**
+ * Mints a short-lived LiveKit token. The backend also dispatches the voice
+ * agent into the new room with this user's identity.
+ */
+export async function fetchVoiceToken(token: string | null): Promise<VoiceToken> {
+  return apiRequest<VoiceToken>("/voice/token", {
+    method: "POST",
+    token,
+  })
+}
+
+export async function saveVoiceTranscript(
+  sessionId: string,
+  message: { id: string; role: "user" | "assistant"; content: string },
+  token: string | null,
+): Promise<void> {
+  await apiRequest("/voice/transcripts", {
+    method: "POST",
+    body: {
+      session_id: sessionId,
+      message_id: message.id,
+      role: message.role,
+      content: message.content,
+    },
+    token,
+  })
+}
+
 export interface DocInfo {
   filename: string
   size_bytes: number
@@ -237,7 +292,7 @@ export interface DocInfo {
 }
 
 export async function listDocuments(token: string | null): Promise<DocInfo[]> {
-  const res = await apiRequest<{ docs: DocInfo[] }>("/api/docs", {
+  const res = await apiRequest<{ docs: DocInfo[] }>(docsApiUrl("/docs"), {
     method: "GET",
     token,
   })
@@ -254,7 +309,7 @@ export async function uploadDocument(
   const headers: Record<string, string> = {}
   if (token) headers["Authorization"] = `Bearer ${token}`
 
-  const res = await fetch("/api/docs/upload", {
+  const res = await fetch(docsApiUrl("/docs/upload"), {
     method: "POST",
     headers,
     body: formData,
@@ -269,9 +324,8 @@ export async function uploadDocument(
 }
 
 export async function deleteDocument(filename: string, token: string | null): Promise<void> {
-  await apiRequest<void>(`/api/docs/${encodeURIComponent(filename)}`, {
+  await apiRequest<void>(docsApiUrl(`/docs/${encodeURIComponent(filename)}`), {
     method: "DELETE",
     token,
   })
 }
-

@@ -4,10 +4,11 @@ from typing import Any, Iterator
 
 import agentops
 from agno.agent import Agent, RunEvent
-from agno.db.mongo import MongoDb
+from agno.db.postgres import PostgresDb
 from agno.models.openai.like import OpenAILike
 from agno.session import SessionSummaryManager
 from core.config import settings
+from core.database import AGNO_DB_SCHEMA, AGNO_SESSIONS_TABLE
 from dotenv import load_dotenv
 from keymesh import SchedulerStrategy, OpenAIHandler
 from openai import OpenAI
@@ -43,32 +44,96 @@ If the answer is not documented, respond only:
 AGENT_TOOLS = [list_all_docs, grep, read_slice_doc, read_doc]
 
 
+def _sqlalchemy_url(url: str) -> str:
+    """Point SQLAlchemy at psycopg v3 instead of the psycopg2 default."""
+    if url.startswith("postgresql+psycopg://"):
+        return url
+    if url.startswith("postgresql://"):
+        return "postgresql+psycopg://" + url.removeprefix("postgresql://")
+    if url.startswith("postgres://"):
+        return "postgresql+psycopg://" + url.removeprefix("postgres://")
+    return url
+
+
 # Load .env from the project root (one level up from backend/)
 load_dotenv()
 
 
+def _patch_agentops_otel_compat() -> None:
+    """Keep AgentOps telemetry working with OpenTelemetry 1.45.
+
+    livekit-agents requires OpenTelemetry >= 1.45, which moved the OTLP HTTP
+    exporter's session headers onto an internal client. AgentOps 0.4.21 still
+    reads the removed ``_headers`` and ``_session`` attributes when injecting
+    its JWT, so expose the client's header mapping under the old names.
+    """
+    try:
+        from importlib.metadata import version
+
+        from agentops.sdk.exporters import AuthenticatedOTLPExporter
+    except Exception:
+        return
+
+    try:
+        exporter_version = version("opentelemetry-exporter-otlp-proto-http")
+        major, minor = (int(part) for part in exporter_version.split(".")[:2])
+    except Exception:
+        return
+    if (major, minor) < (1, 45):
+        return
+
+    class _SessionProxy:
+        def __init__(self, client) -> None:
+            self._client = client
+
+        @property
+        def headers(self):
+            return self._client._headers
+
+    if not isinstance(getattr(AuthenticatedOTLPExporter, "_headers", None), property):
+        AuthenticatedOTLPExporter._headers = property(
+            lambda self: self._client._headers
+        )
+    if not isinstance(getattr(AuthenticatedOTLPExporter, "_session", None), property):
+        AuthenticatedOTLPExporter._session = property(
+            lambda self: _SessionProxy(self._client)
+        )
+
+
 class DocumentationAgent:
     def __init__(self) -> None:
+        _patch_agentops_otel_compat()
         agentops.init()
 
         openai_client = self._build_openai_client()
         model_provider = self._build_model_provider(openai_client, settings.OPENAI_MODEL)
         session_manager = self._build_session_manager(openai_client)
-
-        self.agent = Agent(
-            model=model_provider,
-            instructions=AGENT_INSTRUCTIONS,
-            tools=AGENT_TOOLS,
-            tool_choice="auto",
-            compress_tool_results=True,
-            tool_call_limit=4,
-            enable_session_summaries=True,
-            session_summary_manager=session_manager,
-            max_tool_calls_from_history=0,
-            db=MongoDb(db_url=settings.MONGO_DB_URL
-                       ,db_name=settings.MONGO_DATABASE_NAME),
-            read_chat_history=True,  # Agent gets a get_chat_history() tool
+        self.db = PostgresDb(
+            db_url=_sqlalchemy_url(settings.POSTGRES_URL),
+            db_schema=AGNO_DB_SCHEMA,
+            session_table=AGNO_SESSIONS_TABLE,
         )
+
+        try:
+            self.agent = Agent(
+                model=model_provider,
+                instructions=AGENT_INSTRUCTIONS,
+                tools=AGENT_TOOLS,
+                tool_choice="auto",
+                compress_tool_results=True,
+                tool_call_limit=4,
+                enable_session_summaries=True,
+                session_summary_manager=session_manager,
+                max_tool_calls_from_history=0,
+                db=self.db,
+                read_chat_history=True,  # Agent gets a get_chat_history() tool
+            )
+        except Exception:
+            self.db.close()
+            raise
+
+    def close(self) -> None:
+        self.db.close()
 
     def _build_openai_client(self) -> OpenAI:
         api_keys = self._load_api_keys()
@@ -132,12 +197,28 @@ class DocumentationAgent:
             tool_response=tool_resp,
         )
 
-    def ask(self, prompt: str, session_id: str | None = None) -> AgentResponse:
-        response = self.agent.run(prompt, session_id=session_id)
+    def ask(
+        self,
+        prompt: str,
+        session_id: str | None = None,
+        user_id: str | None = None,
+    ) -> AgentResponse:
+        response = self.agent.run(prompt, session_id=session_id, user_id=user_id)
         return self.parse_agent_output(response)
 
-    def stream(self, prompt: str, session_id: str | None = None) -> Iterator[str]:
-        response = self.agent.run(prompt, session_id=session_id, stream=True, stream_events=True)
+    def stream(
+        self,
+        prompt: str,
+        session_id: str | None = None,
+        user_id: str | None = None,
+    ) -> Iterator[str]:
+        response = self.agent.run(
+            prompt,
+            session_id=session_id,
+            user_id=user_id,
+            stream=True,
+            stream_events=True,
+        )
 
         for event in response:
             if event.event == RunEvent.tool_call_started and event.tool:

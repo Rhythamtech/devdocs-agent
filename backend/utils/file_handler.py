@@ -4,7 +4,7 @@ from pathlib import Path
 from fastapi import HTTPException, status
 from core.config import settings
 
-ALLOWED_EXTENSIONS = {".md", ".txt"}
+ALLOWED_EXTENSIONS = {".md", ".markdown", ".txt"}
 
 def get_user_upload_dir(username: str) -> Path:
     """Get user's upload directory absolute path, ensuring it is within the root."""
@@ -145,11 +145,11 @@ The system is split into three main parts:
 User-uploaded documentation is saved in user-specific subdirectories under `backend/docs/uploads/<username>/`. The system uses `contextvars.ContextVar` to set the active user directory on request threads. This isolates the agent's tools to the specific user's folder, preventing unauthorized file access.
 
 ### 2. Database Schema
-MongoDB is used to store user registration, user session history, refresh tokens, and Agno's internal message log collections:
+PostgreSQL stores user accounts, authentication metadata, and Agno's session history:
 * **users:** Stores user registration details with hashed passwords (Argon2id).
-* **sessions:** Manages the mapping of user IDs to agent session IDs, enabling user ownership of sessions.
 * **refresh_tokens:** Stores hashed refresh tokens for JWT session management.
 * **audit_logs:** Tracks metrics like prompt length, model used, latency, and status for request auditing.
+* **ai.agno_sessions:** Agno's session table. Stores chat runs, summaries, and agent state as JSONB, keyed by session ID.
 
 ### 3. Agent Tool Flow
 When a user asks a question, the agent:

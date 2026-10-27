@@ -1,7 +1,10 @@
+from contextlib import contextmanager
 from pathlib import Path
 import re
 import itertools
 from contextvars import ContextVar
+
+from utils.file_handler import get_user_upload_dir
 
 # ContextVar for request-local uploads folder
 current_user_docs_dir: ContextVar[Path] = ContextVar("current_user_docs_dir", default=None)
@@ -12,6 +15,21 @@ def get_docs_dir() -> Path:
         return val
     # Fallback to default docs directory
     return (Path(__file__).parent.parent / "docs").resolve()
+
+
+@contextmanager
+def use_user_docs(username: str):
+    """Scope the document tools to a single user's upload directory.
+
+    The FastAPI request path already sets this ContextVar. The LiveKit voice
+    agent runs in its own process, so it uses this helper around each tool call
+    to reuse the exact same list/grep/read implementation.
+    """
+    token = current_user_docs_dir.set(get_user_upload_dir(username))
+    try:
+        yield
+    finally:
+        current_user_docs_dir.reset(token)
 
 def list_all_docs(pattern: str = "*"):
     """List all documents (markdown and text files) in the document directory.
@@ -24,8 +42,8 @@ def list_all_docs(pattern: str = "*"):
     if not docs_dir.exists():
         return []
     files = []
-    # Find both .md and .txt files
-    for ext in ("*.md", "*.txt"):
+    # Find markdown and text files
+    for ext in ("*.md", "*.markdown", "*.txt"):
         for file in docs_dir.rglob(ext):
             files.append(file.relative_to(docs_dir))
     return files
@@ -43,7 +61,7 @@ def grep(pattern: str, max_results: int = 5):
     try:
         rx = re.compile(pattern, re.IGNORECASE)
         # Scan md and txt files
-        for ext in ("*.md", "*.txt"):
+        for ext in ("*.md", "*.markdown", "*.txt"):
             for path in docs_dir.rglob(ext):
                 with open(path, 'r', encoding='utf-8', errors='ignore') as f:
                     for i, line in enumerate(f, start=1):

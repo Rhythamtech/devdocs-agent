@@ -3,11 +3,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pathlib import Path
+from psycopg import OperationalError
 from agent import DocumentationAgent
 from core.state import state
 from core.config import settings
+from core.database import Database
 from core.logger import logger
-from pymongo import AsyncMongoClient
 from contextlib import asynccontextmanager
 from router import router
 from slowapi import _rate_limit_exceeded_handler
@@ -32,12 +33,9 @@ async def lifespan(app: FastAPI):
 
     # ── Database init (runs regardless of agent status) ────────────────────
     try:
-        state.mongo_client = AsyncMongoClient(settings.MONGO_DB_URL)
-        state.db = state.mongo_client[settings.MONGO_DATABASE_NAME]
-
-        await state.db.users.create_index("username", unique=True)
-        await state.db.users.create_index("email", unique=True)
-
+        database = Database(settings.POSTGRES_URL)
+        await database.connect()
+        state.db = database
         logger.info("Database connected")
     except Exception as e:
         state.startup_errors.append(str(e))
@@ -47,8 +45,13 @@ async def lifespan(app: FastAPI):
     yield
 
     # ── Shutdown ───────────────────────────────────────────────────────────
-    if state.mongo_client is not None:
-        await state.mongo_client.close()
+    if state.agent is not None:
+        try:
+            state.agent.close()
+        except Exception:
+            logger.exception("Failed to close agent database engine")
+    if state.db is not None:
+        await state.db.close()
     logger.info("Shutdown")
 
 app = FastAPI(
@@ -109,6 +112,15 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         error_code="validation_error",
         details=exc.errors(),
+    )
+
+@app.exception_handler(OperationalError)
+async def database_unavailable_exception_handler(request: Request, exc: OperationalError):
+    logger.warning("Database operation failed: %s", exc)
+    return error_response(
+        "Database is temporarily unavailable.",
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        error_code="database_unavailable",
     )
 
 @app.exception_handler(Exception)
