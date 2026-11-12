@@ -1,7 +1,12 @@
 services:
+  # Local PostgreSQL. The image is pulled from Docker Hub on every start
+  # (`docker compose pull` does the same on its own).
   postgres:
     image: postgres:16-alpine
+    pull_policy: always
     restart: unless-stopped
+    # Credentials come from the project .env / shell environment, never from
+    # .env.example. Change them here and the app picks them up automatically.
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-devdocs}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devdocs}
@@ -29,7 +34,12 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      POSTGRES_URL: postgresql://${POSTGRES_USER:-devdocs}:${POSTGRES_PASSWORD:-devdocs}@postgres:5432/${POSTGRES_DB:-devdocs}
+      # Points at the local compose Postgres by default. Set COMPOSE_POSTGRES_URL
+      # in .env to target an external server instead (use host.docker.internal
+      # when that server runs on the Docker host itself). POSTGRES_URL stays
+      # untouched: it is for runs outside Docker (./start.sh), where the server
+      # is reachable on localhost.
+      POSTGRES_URL: ${COMPOSE_POSTGRES_URL:-postgresql://${POSTGRES_USER:-devdocs}:${POSTGRES_PASSWORD:-devdocs}@postgres:5432/${POSTGRES_DB:-devdocs}}
       OPENAI_API_KEYS: ${OPENAI_API_KEYS:?error}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.groq.com/openai/v1}
       OPENAI_MODEL: ${OPENAI_MODEL:-qwen/qwen3-32b}
@@ -58,7 +68,12 @@ services:
     restart: on-failure
     command: ["uv", "run", "python", "-m", "voice.agent", "start"]
     environment:
-      POSTGRES_URL: postgresql://${POSTGRES_USER:-devdocs}:${POSTGRES_PASSWORD:-devdocs}@postgres:5432/${POSTGRES_DB:-devdocs}
+      # Points at the local compose Postgres by default. Set COMPOSE_POSTGRES_URL
+      # in .env to target an external server instead (use host.docker.internal
+      # when that server runs on the Docker host itself). POSTGRES_URL stays
+      # untouched: it is for runs outside Docker (./start.sh), where the server
+      # is reachable on localhost.
+      POSTGRES_URL: ${COMPOSE_POSTGRES_URL:-postgresql://${POSTGRES_USER:-devdocs}:${POSTGRES_PASSWORD:-devdocs}@postgres:5432/${POSTGRES_DB:-devdocs}}
       OPENAI_API_KEYS: ${OPENAI_API_KEYS:?error}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.groq.com/openai/v1}
       OPENAI_MODEL: ${OPENAI_MODEL:-qwen/qwen3-32b}

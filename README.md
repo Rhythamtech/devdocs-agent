@@ -134,6 +134,24 @@ docker compose up --build
 # Backend API docs: http://localhost:8000/api/docs
 ```
 
+The stack ships its own PostgreSQL (`postgres:16-alpine`, pulled from Docker Hub)
+in the `postgres` service — no database install needed on the host. Data lives in
+the `postgres_data` volume and the schema is created automatically on first start.
+
+To use a PostgreSQL server you already have, put its URL in `.env`:
+
+```bash
+COMPOSE_POSTGRES_URL=postgresql://USER:PASSWORD@HOST:5432/DBNAME?sslmode=require
+```
+
+`COMPOSE_POSTGRES_URL` then overrides the bundled database for the backend and
+the voice worker. If that server runs on the Docker host itself, use
+`host.docker.internal` instead of `localhost` — inside a container `localhost`
+is the container.
+
+`POSTGRES_URL` stays separate on purpose: it is the URL used by runs **outside**
+Docker (`./start.sh`), where the server is reachable on `localhost:5432`.
+
 ### Local Development
 
 ```bash
@@ -185,7 +203,8 @@ Mock credentials: `admin` / `admin`
 | `OPENAI_BASE_URL` | LLM API base URL | `https://api.groq.com/openai/v1` |
 | `OPENAI_MODEL` | Model identifier | `qwen/qwen3-32b` |
 | `AGENTOPS_API_KEY` | AgentOps observability key | — |
-| `POSTGRES_URL` | PostgreSQL connection string | `postgresql://devdocs:devdocs@localhost:5432/devdocs` |
+| `POSTGRES_URL` | PostgreSQL connection string for runs outside Docker (`./start.sh`) | `postgresql://devdocs:devdocs@localhost:5432/devdocs` |
+| `COMPOSE_POSTGRES_URL` | PostgreSQL connection string for the Docker containers. Blank = the bundled Compose Postgres | *(unset)* |
 | `POSTGRES_USER` | Database user created by Docker Compose | `devdocs` |
 | `POSTGRES_PASSWORD` | Database password created by Docker Compose | `devdocs` |
 | `POSTGRES_DB` | Database name created by Docker Compose | `devdocs` |

@@ -71,6 +71,7 @@ In the **Environment** tab of your compose service, add these **required** vars:
 | `POSTGRES_PASSWORD` | `devdocs` | Database password — change in production |
 | `POSTGRES_DB` | `devdocs` | Database name |
 | `POSTGRES_PORT` | `5432` | Loopback host port for the Postgres container; change if 5432 is taken |
+| `COMPOSE_POSTGRES_URL` | *(unset)* | Set to point the containers at an external PostgreSQL server instead of the bundled `postgres` service |
 | `AGENTOPS_API_KEY` | *(empty)* | AgentOps telemetry key |
 | `JWT_EXPIRE_IN_MINUTES` | `15` | Token expiry |
 | `ALLOW_ORIGINS` | `*` | CORS origins |
@@ -134,7 +135,8 @@ Both survive container restarts and redeploys.
 
 **PostgreSQL connection refused**
 - The backend waits for the Postgres healthcheck before starting. If it still fails, check the Postgres logs and credentials.
-- Check env: `POSTGRES_URL` should be `postgresql://devdocs:devdocs@postgres:5432/devdocs` inside Compose. If you changed `POSTGRES_USER`, `POSTGRES_PASSWORD`, or `POSTGRES_DB`, update the URL to match.
+- Check env: inside Compose `POSTGRES_URL` defaults to `postgresql://devdocs:devdocs@postgres:5432/devdocs`, built from `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB`. If you changed any of those, update the URL to match — or leave `POSTGRES_URL` unset and let Compose build it for you.
+- If `COMPOSE_POSTGRES_URL` points at an external server, `host.docker.internal` is the right host when that server runs on the Docker host itself (`localhost` inside a container is the container).
 
 **Changes not reflected after push**
 - Ensure the branch and compose path are correct in the service settings.
