@@ -54,7 +54,15 @@ DevDocs Agent takes a different approach: **grep-first retrieval**. The agent di
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
+┌──────────────┐
+│   Browser    │
+└──────┬───────┘
+       │ HTTPS (Cloudflare quick tunnel)
+┌──────▼──────────────────────────────────────────────────────┐
+│                 cloudflared (Compose)                       │
+└──────┬──────────────────────────────────────────────────────┘
+       │ http://devdocsfrontend:3000
+┌──────▼──────────────────────────────────────────────────────┐
 │                       Frontend                              │
 │               Next.js 16 · React 19 · TailwindCSS          │
 │                    Port 3000                                │
@@ -111,7 +119,7 @@ The agent has 4 tools that operate on the user's filesystem:
 | Rate Limiting | Slowapi (in-memory, per-user) |
 | Observability | AgentOps |
 | Voice | LiveKit Agents (orchestration) + Deepgram Flux (STT) + Deepgram Aura-2 (TTS) |
-| Deployment | Docker Compose (4 services) |
+| Deployment | Docker Compose (5 services) + Cloudflare Tunnel |
 
 ---
 
@@ -127,10 +135,18 @@ cp .env.example .env   # edit with your API keys
 # 2. Start everything
 docker compose up --build
 
-# 3. Open
-# Frontend: http://localhost:3000
-# Backend API docs: http://localhost:8000/api/docs
+# 3. Get the public URL (Cloudflare quick tunnel)
+docker compose logs cloudflared | grep trycloudflare
+# Open the printed https://<random>.trycloudflare.com URL
+# Swagger UI: <that-url>/api/docs
 ```
+
+The `cloudflared` service exposes the frontend through a Cloudflare **quick
+tunnel**, so the Compose stack does not publish host ports. The public URL is
+printed in the tunnel logs and **changes every time the container restarts**.
+For a stable hostname, configure a named Cloudflare tunnel with your own
+domain instead. If you also want local access, add
+`ports: ["3000:3000"]` to the `devdocsfrontend` service.
 
 The stack ships its own PostgreSQL (`postgres:16-alpine`, pulled from Docker Hub)
 in the `postgres` service — no database install needed on the host. Data lives in
@@ -178,7 +194,8 @@ uv run python -m voice.agent dev   # LiveKit worker (connects out to LiveKit Clo
 `./start.sh` starts the worker automatically when those four variables are set.
 The Docker `voice-agent` service does the same and exits cleanly when they are
 missing. The mic button reports voice as unavailable (503 from `/voice/token`)
-when voice is not configured. Voice transcripts appear inline but are not saved.
+when voice is not configured. Voice transcripts appear inline and are saved to
+the session history.
 
 ### Frontend Mock Mode
 
@@ -302,7 +319,7 @@ devdocs-agent/
 │   │   ├── hooks/               # useChatHistory, useVoiceSession
 │   │   └── lib/api.ts           # API client + SSE parser
 │   └── package.json
-├── docker-compose.yml           # 4-service deployment
+├── docker-compose.yml           # 5-service deployment (incl. Cloudflare tunnel)
 ├── start.sh                     # Local dev launcher
 └── .env                         # Environment config
 ```
@@ -320,7 +337,9 @@ docker compose up --build -d
 - **PostgreSQL** data persisted via the `postgres_data` volume; tables are created automatically on backend startup
 - **Uploads** persisted via the `user_docs` volume
 - Backend health check: `GET /health`
-- Frontend builds with `NEXT_PUBLIC_API_URL` baked in
+- **Cloudflare Tunnel** (`cloudflared`) publishes the frontend at a public `https://*.trycloudflare.com` URL — find it with `docker compose logs cloudflared`
+- Quick-tunnel hostnames change on restart; use a named tunnel and a domain for a stable URL
+- Frontend builds with `NEXT_PUBLIC_API_URL` baked in; the backend host used by Next.js rewrites is baked at build time via `BACKEND_INTERNAL_URL` (default `http://devdocsbackend:8000`)
 
 ### Environment Notes
 
