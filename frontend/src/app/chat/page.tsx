@@ -54,7 +54,7 @@ function generateSessionId(): string {
 
 export default function ChatPage() {
   const { token } = useAuth()
-  const { sessions, addSession, clearAll, refresh: refreshSessions } = useChatHistory()
+  const { sessions, addSession, clearAll, refresh: refreshSessions } = useChatHistory(token)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [streaming, setStreaming] = useState(false)

@@ -1,5 +1,4 @@
 import json
-import os
 from typing import Any, Iterator
 
 import agentops
@@ -10,7 +9,6 @@ from agno.session import SessionSummaryManager
 from core.config import settings
 from core.database import AGNO_DB_SCHEMA, AGNO_SESSIONS_TABLE
 from dotenv import load_dotenv
-from keymesh import SchedulerStrategy, OpenAIHandler
 from openai import OpenAI
 from schema import AgentResponse, ToolResponse
 from utils.tools import grep, list_all_docs, read_doc, read_slice_doc
@@ -35,7 +33,15 @@ Answer questions using the documentation and provide a concise explanation. Do N
 * search results
 * document snippets without explanation
 
-Instead, synthesize the information into a direct answer and then cite the source documents.
+Instead, synthesize the information into a direct answer and then cite the source documents by their exact file names.
+
+Formatting rules:
+- Reproduce file names, paths, commands, and identifiers exactly as the tools
+  return them, preserving punctuation: `document.md`, `/docs/upload`,
+  `read_doc`, `OPENAI_API_KEY`.
+- Never spell out punctuation or expand file extensions. Write "document.md",
+  not "document dot md" or "document dot markdown"; write "/docs/upload",
+  not "slash docs slash upload".
 
 If the answer is not documented, respond only:
 "I don't know based on the available documentation."
@@ -136,22 +142,10 @@ class DocumentationAgent:
         self.db.close()
 
     def _build_openai_client(self) -> OpenAI:
-        api_keys = self._load_api_keys()
-        openai_handler = OpenAIHandler(keys=api_keys, strategy=SchedulerStrategy.ROUND_ROBIN)
-
         return OpenAI(
-            api_key="dummy",  # Replaced dynamically by transport
+            api_key=settings.OPENAI_API_KEY,
             base_url=settings.OPENAI_BASE_URL,
-            http_client=openai_handler,
         )
-
-    def _load_api_keys(self) -> list[str]:
-        api_keys_str = os.getenv("OPENAI_API_KEYS")
-
-        if not api_keys_str:
-            raise ValueError("OPENAI_API_KEYS environment variable is not set.")
-
-        return [key.strip() for key in str(api_keys_str).split(",")]
 
     def _build_model_provider(self, openai_client: OpenAI, model_id: str) -> OpenAILike:
         return OpenAILike(

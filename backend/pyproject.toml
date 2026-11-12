@@ -9,7 +9,6 @@ dependencies = [
     "agno>=2.6.9",
     "ddgs>=9.14.4",
     "fastapi[standard]>=0.136.3",
-    "keymesh",
     "livekit-agents[deepgram]~=1.8",
     "livekit-api",
     "openai>=2.38.0",
@@ -22,5 +21,3 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0",
 ]
 
-[tool.uv.sources]
-keymesh = { url = "https://test-files.pythonhosted.org/packages/f0/9d/1a346c458562b9c9f57815cc7dc6a6498db7ae5e407df52a23576cc44640/keymesh-0.1.2rc5-py3-none-any.whl" }

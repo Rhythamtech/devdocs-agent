@@ -43,7 +43,6 @@ DevDocs Agent takes a different approach: **grep-first retrieval**. The agent di
 |---|---|
 | **No vector database** | File-system-native retrieval via `list` → `grep` → `read`. Avoids embedding costs and index maintenance while leveraging the LLM's ability to reason about file structure. |
 | **User-level filesystem isolation** | Python `ContextVar` scopes every tool call to the current user's upload directory. Clean, thread-safe multi-tenant isolation without separate containers. |
-| **Multi-key round-robin** | Keymesh rotates multiple API keys with automatic 429 detection. Higher throughput and resilience against per-key rate limits. |
 | **Session summary compression** | After every 4 conversation turns, a smaller model (Llama 4 Scout) generates a summary, compressing chat history by ~36% and reducing token costs for long sessions. |
 | **Degraded mode** | If the agent fails to initialize (missing keys, network issues), auth and document endpoints still serve. Health endpoint reports `degraded` status. |
 | **SSE streaming with tool-call visibility** | Real-time streaming shows tool calls (`grep`, `read_doc`) as collapsible cards in the UI — users see exactly how the agent found its answer. |
@@ -110,7 +109,6 @@ The agent has 4 tools that operate on the user's filesystem:
 | Database | PostgreSQL 16 (psycopg 3 async pool + Agno `PostgresDb`) |
 | Auth | JWT (PyJWT) + Argon2id (pwdlib) |
 | Rate Limiting | Slowapi (in-memory, per-user) |
-| API Key Mgmt | Keymesh (round-robin) |
 | Observability | AgentOps |
 | Voice | LiveKit Agents (orchestration) + Deepgram Flux (STT) + Deepgram Aura-2 (TTS) |
 | Deployment | Docker Compose (4 services) |
@@ -199,7 +197,7 @@ Mock credentials: `admin` / `admin`
 
 | Variable | Description | Default |
 |---|---|---|
-| `OPENAI_API_KEYS` | Comma-separated API keys (Groq or OpenAI-compatible) | — |
+| `OPENAI_API_KEY` | API key (Groq or OpenAI-compatible) | — |
 | `OPENAI_BASE_URL` | LLM API base URL | `https://api.groq.com/openai/v1` |
 | `OPENAI_MODEL` | Model identifier | `qwen/qwen3-32b` |
 | `AGENTOPS_API_KEY` | AgentOps observability key | — |
@@ -327,7 +325,6 @@ docker compose up --build -d
 ### Environment Notes
 
 - The LLM model is swappable — set `OPENAI_MODEL` to any model available on your provider
-- Multiple API keys are supported — comma-separate them in `OPENAI_API_KEYS`
 - JWT tokens expire after 15 minutes by default (configurable via `JWT_EXPIRE_IN_MINUTES`)
 
 ---

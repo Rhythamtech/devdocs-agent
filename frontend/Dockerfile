@@ -19,8 +19,12 @@ COPY . .
 
 ARG NEXT_PUBLIC_API_URL=
 ARG NEXT_PUBLIC_MOCK_MODE=false
+# Rewrites are resolved during `next build`, so the backend hostname must be
+# set at build time (matching the Compose service name).
+ARG BACKEND_INTERNAL_URL=http://devdocsbackend:8000
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ENV NEXT_PUBLIC_MOCK_MODE=${NEXT_PUBLIC_MOCK_MODE}
+ENV BACKEND_INTERNAL_URL=${BACKEND_INTERNAL_URL}
 
 RUN --mount=type=cache,target=/app/.next/cache \
     npm run build
@@ -33,7 +37,7 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
-ENV API_URL=http://backend:8000
+ENV API_URL=http://devdocsbackend:8000
 
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static

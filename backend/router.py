@@ -437,7 +437,11 @@ async def list_sessions(request: Request, db: DatabaseDep, username: CurrentUser
                MAX(created_at) AS created_at
         FROM (
             SELECT session_id,
-                   COALESCE(session_data->>'session_name', session_id) AS title,
+                   COALESCE(
+                       NULLIF(session_data->>'session_name', ''),
+                       NULLIF(runs->0->'input'->>'input_content', ''),
+                       session_id
+                   ) AS title,
                    created_at
             FROM {SESSIONS_TABLE}
             WHERE user_id = %s

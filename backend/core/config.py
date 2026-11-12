@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     POSTGRES_URL: str
     POSTGRES_CONNECT_TIMEOUT: int = 10
-    OPENAI_API_KEYS: str 
+    OPENAI_API_KEY: str
     
     JWT_SECRET :str 
     JWT_EXPIRE_IN_MINUTES : int 

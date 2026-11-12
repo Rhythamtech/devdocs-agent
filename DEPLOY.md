@@ -15,13 +15,13 @@
                                 └──────┬───────┘
                                        │
 ┌────────┐   ┌─────────────────────────▼──────────┐
-│ User   │──▶│  Frontend (Next.js :3000)          │
-│ Browser│   │  /auth/* → http://backend:8000     │
-│        │   │  /ask/*  → http://backend:8000     │
-│        │   │  /chats/*→ http://backend:8000     │
-└────────┘   │  /docs/* → http://backend:8000     │
-             │  /sessions/*→ http://backend:8000  │
-             │  /voice/*→ http://backend:8000     │
+│ User   │──▶│  Frontend (Next.js :3000)              │
+│ Browser│   │  /auth/* → http://devdocsbackend:8000  │
+│        │   │  /ask/*  → http://devdocsbackend:8000  │
+│        │   │  /chats/*→ http://devdocsbackend:8000  │
+└────────┘   │  /docs/* → http://devdocsbackend:8000  │
+             │  /sessions/*→ http://devdocsbackend:8000 │
+             │  /voice/*→ http://devdocsbackend:8000  │
              └────────────────────┬───────────────┘
                                   │
              ┌────────────────────▼───────────────┐
@@ -58,7 +58,7 @@ In the **Environment** tab of your compose service, add these **required** vars:
 
 | Variable | Example | Notes |
 |---|---|---|
-| `OPENAI_API_KEYS` | `gsk_key1, gsk_key2` | Comma-separated Groq/OpenAI keys |
+| `OPENAI_API_KEY` | `gsk_...` | Groq/OpenAI-compatible API key |
 | `JWT_SECRET` | `random-64-char-string` | Generate with `openssl rand -hex 32` |
 
 **Optional** overrides (defaults shown):
@@ -129,9 +129,10 @@ Both survive container restarts and redeploys.
 
 ## Troubleshooting
 
-**Frontend can't connect to backend**
-- The rewrites use `http://backend:8000` — this is Docker internal DNS. Both services must be on the same `dokploy-network`.
-- Check: `docker compose -p <project> exec frontend wget -qO- http://backend:8000/health` (or just check the backend logs)
+**Frontend can't connect to backend** (`getaddrinfo ENOTFOUND backend`)
+- The rewrites proxy to `http://devdocsbackend:8000` (the Compose service name) over Docker's internal DNS. Both services must be on the same network.
+- The rewrite destination is baked in during `next build`, so after changing the service name or `BACKEND_INTERNAL_URL`, redeploy with a rebuild — a restart alone won't pick it up.
+- Check: `docker compose -p <project> exec devdocsfrontend wget -qO- http://devdocsbackend:8000/health` (or just check the backend logs)
 
 **PostgreSQL connection refused**
 - The backend waits for the Postgres healthcheck before starting. If it still fails, check the Postgres logs and credentials.

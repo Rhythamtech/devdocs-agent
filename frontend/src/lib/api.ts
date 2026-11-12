@@ -72,6 +72,30 @@ export async function apiRequest<T>(path: string, opts: ApiOptions = {}): Promis
   return res.json()
 }
 
+export interface ChatSession {
+  session_id: string
+  title: string
+  created_at: string
+}
+
+/**
+ * Lists the signed-in user's sessions from GET /sessions. This is the source
+ * of truth for the sidebar so history survives container restarts and origin
+ * changes (e.g. a new quick-tunnel URL).
+ */
+export async function fetchSessions(token: string | null): Promise<ChatSession[]> {
+  const res = await apiRequest<{ sessions: ChatSession[] }>("/sessions", {
+    method: "GET",
+    token,
+  })
+  return res.sessions || []
+}
+
+/** Deletes every server-side session for the signed-in user. */
+export async function deleteAllSessions(token: string | null): Promise<void> {
+  await apiRequest("/sessions", { method: "DELETE", token })
+}
+
 /**
  * Fetches the message history for a given session from GET /chats?session_id=<id>.
  * The backend returns an array of message objects from the agent's PostgreSQL store.

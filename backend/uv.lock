@@ -305,7 +305,6 @@ dependencies = [
     { name = "agno" },
     { name = "ddgs" },
     { name = "fastapi", extra = ["standard"] },
-    { name = "keymesh" },
     { name = "livekit-agents", extra = ["deepgram"] },
     { name = "livekit-api" },
     { name = "openai" },
@@ -324,7 +323,6 @@ requires-dist = [
     { name = "agno", specifier = ">=2.6.9" },
     { name = "ddgs", specifier = ">=9.14.4" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.136.3" },
-    { name = "keymesh", url = "https://test-files.pythonhosted.org/packages/f0/9d/1a346c458562b9c9f57815cc7dc6a6498db7ae5e407df52a23576cc44640/keymesh-0.1.2rc5-py3-none-any.whl" },
     { name = "livekit-agents", extras = ["deepgram"], specifier = "~=1.8" },
     { name = "livekit-api" },
     { name = "openai", specifier = ">=2.38.0" },
@@ -1305,34 +1303,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/72/29/653c36e0de80f7048
 wheels = [
     { url = "https://files.pythonhosted.org/packages/6b/a4/222e2581667c326183a87df229e772140fbf3e5dc03ec73e2a0e74804114/json_repair-0.63.5-py3-none-any.whl", hash = "sha256:0e39b3066f7829b4bd7fc614e463cfd4ff7a4c46f82f5b65431fc11e29a74c81", size = 51334, upload-time = "2026-09-22T18:36:07.05Z" },
 ]
-
-[[package]]
-name = "keymesh"
-version = "0.1.2rc5"
-source = { url = "https://test-files.pythonhosted.org/packages/f0/9d/1a346c458562b9c9f57815cc7dc6a6498db7ae5e407df52a23576cc44640/keymesh-0.1.2rc5-py3-none-any.whl" }
-dependencies = [
-    { name = "aiofiles" },
-    { name = "python-dotenv" },
-]
-wheels = [
-    { url = "https://test-files.pythonhosted.org/packages/f0/9d/1a346c458562b9c9f57815cc7dc6a6498db7ae5e407df52a23576cc44640/keymesh-0.1.2rc5-py3-none-any.whl", hash = "sha256:de0722d2345ba61bbccc81bb0d847b9ead327ea2b8fe5799ae61553853a9951d" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiofiles" },
-    { name = "httpx", marker = "extra == 'dev'" },
-    { name = "httpx", marker = "extra == 'openai'" },
-    { name = "mypy", marker = "extra == 'dev'" },
-    { name = "openai", marker = "extra == 'dev'" },
-    { name = "openai", marker = "extra == 'openai'" },
-    { name = "pytest", marker = "extra == 'dev'" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'" },
-    { name = "python-dotenv" },
-    { name = "redis", marker = "extra == 'redis'" },
-    { name = "ruff", marker = "extra == 'dev'" },
-]
-provides-extras = ["dev", "openai", "redis"]
 
 [[package]]
 name = "limits"
