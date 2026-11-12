@@ -25,7 +25,7 @@ services:
     # networks:
     #   - dokploy-network
 
-  backend:
+  devdocsbackend:
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -60,7 +60,7 @@ services:
 
   # LiveKit Agents worker: joins a room, talks to Deepgram, and answers from
   # the same user_docs volume the API writes uploads to.
-  voice-agent:
+  devdocsvoice-agent:
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -96,7 +96,7 @@ services:
     # networks:
     #   - dokploy-network
 
-  frontend:
+  devdocsfrontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
